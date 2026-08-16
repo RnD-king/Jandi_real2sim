@@ -1,0 +1,7 @@
+schema_version: 1
+trajectory: triangle
+parameters:
+  amplitude_rad: 0.070
+  frequencies_hz: [0.05, 0.10]
+  cycles_each: 3
+  center_hold_sec: 1.0

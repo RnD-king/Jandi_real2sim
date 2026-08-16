@@ -1,0 +1,12 @@
+schema_version: 1
+condition: loaded
+
+# 부하 조건: 막대기와 무게추를 모두 장착한다.
+bench:
+  bare_horn: false
+  gravity_zero_offset_rad: null
+  arm_mass_kg: null
+  arm_com_radius_m: null
+  arm_inertia_kg_m2: null
+  added_load_mass_kg: null
+  added_load_radius_m: null

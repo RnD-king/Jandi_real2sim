@@ -1,0 +1,41 @@
+model_xml: /home/noh/Jandi_mjlab/src/jandi_mjlab/assets/jandi/jandi_from_urdf.xml
+physics_dt_sec: 0.002
+torque_limit_nm: 5.5
+
+target_joints: [RL6_joint, LL6_joint]
+pose_id: A
+
+# 같은 통신/제어 경로이므로 delay와 기계 파라미터를 공유한다.
+# Kp_eff는 실제 Position-P register에 정비례시키고 Kd_eff도 공유한다.
+gain_conditions:
+  P350: {register_p: 350}
+  P850: {register_p: 850}
+
+initial_kp_per_register: 0.015
+kp_per_register_bounds: [0.002, 0.035]
+fixed_kd_eff: 0.60
+
+# total width이다. 예: 0.012 rad이면 ±0.006 rad 안에서 PD 위치오차가 0이다.
+# 사용자가 손으로 확인한 약 0.7 deg(0.0122 rad)를 포함한다.
+backlash_total_rad_bounds: [0.0001, 0.040]
+coulomb_friction_nm_bounds: [0.0001, 0.80]
+
+# 두 P 조건에 공통인 0~20 ms delay를 2 ms 격자로 탐색한다.
+delay_min_sec: 0.0
+delay_max_sec: 0.020
+delay_step_sec: 0.002
+# 전 후보는 초기 PD로 빠르게 비교하고, 상위 3개에서만 PD를 최적화한다.
+delay_refine_count: 4
+
+transient_window_sec: 0.40
+plateau_tail_sec: 0.25
+huber_delta_normalized: 0.10
+velocity_loss_weight: 0.10
+plateau_loss_weight: 1.50
+
+# stage 1: delay/Kp변환, stage 2: backlash/Coulomb,
+# stage 3: Kp변환·backlash·Coulomb 세 값 공동 미세조정. Kd는 0.60 고정.
+stage1_max_evaluations: 140
+stage2_max_evaluations: 100
+final_max_evaluations: 240
+final_starts: 2

@@ -1,0 +1,15 @@
+model: M0
+target_joints:
+- RL6_joint
+- LL6_joint
+shared:
+  delay_sec: 0.004
+  delay_ms: 4.0
+  kp_eff: 13.418903731304326
+  kd_eff: 0.6720971608775727
+  fit_loss: 0.000379783446332519
+  success: false
+  evaluations: 80
+torque_limit_nm: 5.5
+physics_dt_sec: 0.002
+command_rate_hz: 100

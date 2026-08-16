@@ -1,0 +1,80 @@
+model_xml: /home/noh/Jandi_mjlab/src/jandi_mjlab/assets/jandi/jandi_from_urdf.xml
+robot_config: /home/noh/Jandi_real2sim/configs/jandi_mx106.yaml
+physics_dt_sec: 0.002
+nominal_voltage_v: 12.0
+torque_limit_nm: 5.5
+
+target_joints: [RL6_joint, LL6_joint]
+pose_id: A
+gain_conditions:
+  P350: {register_p: 350}
+  P850: {register_p: 850}
+
+bounds:
+  drive_gain_nm_per_duty: [2.0, 12.0]
+  armature_kg_m2: [0.0001, 0.080]
+  coulomb_friction_nm: [0.0, 1.5]
+  viscous_friction_nm_s_per_rad: [0.0, 1.0]
+
+huber_delta_normalized: 0.10
+velocity_loss_weight: 0.10
+
+# base config loader 호환용이며 staged CLI에서는 아래 stages 값을 사용한다.
+initial_starts:
+  - drive_gain_nm_per_duty: 4.26
+    armature_kg_m2: 0.0228
+    coulomb_friction_nm: 0.071
+    viscous_friction_nm_s_per_rad: 0.30
+optimizer_maxiter: 80
+optimizer_max_evaluations: 180
+
+stages:
+  # 0.1 Hz triangle에서는 armature와 viscous를 시작값에 고정하고,
+  # 출력 gain과 방향 반전/저속 유지에 지배적인 Coulomb만 맞춘다.
+  triangle:
+    starts:
+      - drive_gain_nm_per_duty: 4.26
+        armature_kg_m2: 0.024
+        coulomb_friction_nm: 0.07
+        viscous_friction_nm_s_per_rad: 0.05
+      - drive_gain_nm_per_duty: 8.40
+        armature_kg_m2: 0.024
+        coulomb_friction_nm: 0.20
+        viscous_friction_nm_s_per_rad: 0.05
+    maxiter: 60
+    max_evaluations: 120
+
+  # Triangle에서 얻은 drive/Coulomb를 시작값에 주입한다. 아래 drive와
+  # Coulomb 값은 placeholder이고 armature/viscous 두 초기화만 사용한다.
+  multisine:
+    starts:
+      - drive_gain_nm_per_duty: 1.0
+        armature_kg_m2: 0.015
+        coulomb_friction_nm: 1.0
+        viscous_friction_nm_s_per_rad: 0.08
+      - drive_gain_nm_per_duty: 1.0
+        armature_kg_m2: 0.040
+        coulomb_friction_nm: 1.0
+        viscous_friction_nm_s_per_rad: 0.30
+    maxiter: 80
+    max_evaluations: 180
+
+  # 첫 항목은 multisine 최적값 그대로 시작한다. 둘째 항목의 값은 절대값이
+  # 아니라 각각의 곱 배율로 사용해 좁은 영역의 시작점 의존성을 확인한다.
+  final:
+    starts:
+      - drive_gain_nm_per_duty: 1.0
+        armature_kg_m2: 1.0
+        coulomb_friction_nm: 1.0
+        viscous_friction_nm_s_per_rad: 1.0
+      - drive_gain_nm_per_duty: 0.90
+        armature_kg_m2: 1.10
+        coulomb_friction_nm: 1.10
+        viscous_friction_nm_s_per_rad: 0.90
+    maxiter: 80
+    max_evaluations: 180
+
+# 최종 공동 미세조정은 multisine 단계값 주변으로 제한한다. 각 파라미터의
+# ±50%와 전체 탐색폭의 10% 중 넓은 쪽을 사용하되 global bounds를 넘지 않는다.
+final_refinement_fraction: 0.50
+final_min_global_span_fraction: 0.10

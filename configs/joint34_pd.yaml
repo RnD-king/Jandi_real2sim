@@ -1,0 +1,61 @@
+model_xml: /home/noh/Jandi_mjlab/src/jandi_mjlab/assets/jandi/jandi_from_urdf.xml
+physics_dt_sec: 0.002
+torque_limit_nm: 5.5
+pose_id: A
+
+# RL/LL은 따로 최적화하지 않는다. 각 관절 번호의 좌우가 한 값을 공유한다.
+joint_groups:
+  joint3: [RL3_joint, LL3_joint]
+  joint4: [RL4_joint, LL4_joint]
+
+# 실제 학습에 사용할 P350만 fit한다. P850은 register 비례 외삽의 완전한
+# held-out validation으로 남겨 둔다.
+fit_condition: {name: P350, register_p: 350}
+validation_conditions:
+  - {name: P850, register_p: 850}
+
+# 1,2,5,6번은 이미 채택한 nominal을 그대로 유지한다.
+reference_register_p: 350
+fixed_base_kp_at_reference: 6.0
+fixed_base_kd: 0.6
+
+# 앞 단계에서 채택한 nuisance parameter는 이번 최적화에서 움직이지 않는다.
+fixed_delay_sec: 0.010
+fixed_backlash_total_rad: 0.009
+fixed_coulomb_friction_nm: 0.003
+position_quantization_rad: 0.0015339807878856412  # 2*pi/4096
+
+# P350 기준 그룹별 PD 탐색 범위. P850 검증에서는 Kp만 register 비율로
+# 850/350배 하고 Kd는 그대로 사용한다.
+initial_kp_at_reference: {joint3: 10.0, joint4: 9.0}
+kp_at_reference_bounds:
+  joint3: [5.0, 15.0]
+  joint4: [5.0, 15.0]
+initial_kd: {joint3: 0.6, joint4: 0.6}
+kd_bounds:
+  joint3: [0.20, 1.50]
+  joint4: [0.20, 1.50]
+
+# Kp stage: triangle + static hold + step plateau.
+# Kd stage: step transient + multisine. final stage에서 네 값을 함께 미세조정한다.
+loss:
+  huber_delta_normalized: 0.10
+  static_position_scale_rad: 0.05
+  static_tail_fraction: 0.50
+  step_transient_window_sec: 0.40
+  step_plateau_tail_sec: 0.25
+  step_velocity_weight: 0.10
+  multisine_velocity_weight: 0.05
+  triangle_weight: 1.0
+  static_hold_weight: 1.0
+  step_plateau_weight: 0.75
+  step_dynamic_weight: 1.0
+  multisine_dynamic_weight: 1.0
+  quasistatic_final_weight: 1.0
+  dynamic_final_weight: 1.0
+
+optimizer:
+  kp_max_evaluations: 80
+  kd_max_evaluations: 100
+  final_max_evaluations: 140
+

@@ -1,0 +1,15 @@
+model: equivalent_PD_deadband_Coulomb
+shared_delay_sec: 0.012
+shared_delay_ms: 12.0
+shared_backlash_total_rad: 0.0076280761030405216
+shared_backlash_total_deg: 0.43705656650882196
+shared_coulomb_friction_nm: 0.006056183383110398
+conditions:
+  P350:
+    register_p: 350
+    kp_eff: 1.59934375033997
+    kd_eff: 0.15744226941347914
+  P850:
+    register_p: 850
+    kp_eff: 18.85403832734093
+    kd_eff: 0.8030982004370423

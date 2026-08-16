@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "method": "triangle -> multisine -> step/triangle/multisine joint refinement",
+  "fit_config": "/home/noh/Jandi_real2sim/configs/m1_pwm_staged.yaml",
+  "fit_config_sha256": "44ac3fe11e74e80f4f3d8e3a348ee5f4386cb65280a9d4c8470de7021215c590",
+  "campaigns": {
+    "P350": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812",
+    "P850": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812"
+  },
+  "runs": [
+    {
+      "condition": "P350",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_012743_compact_step_A_RL6_joint_repeat1",
+      "metadata_sha256": "d4245aa8b0512bf50bf30778456002dff57a49983e68f502fee4f0d59a22da17",
+      "telemetry_sha256": "2c44a9e59059763b3a1f606b2dc0644428077db40df0fcfd7925533dd700ab1a"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_012935_compact_step_A_LL6_joint_repeat1",
+      "metadata_sha256": "961e8737ecb48884142f4c5e329e53f1e9e09c7c059ab6d20c27a9f5001d21ae",
+      "telemetry_sha256": "5b5963e597929ebaf2159b91c5931eba6bcedbaca53730e74ddaebbd0261b63f"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013127_compact_step_A_RL6_joint_repeat2",
+      "metadata_sha256": "7f1c2943d313a47acc5971ca4f59de98132e2c48f8e56f18aef7c2c562a3ca88",
+      "telemetry_sha256": "77212b5fd99a6e3dfc7ae8c49316a78f21fa77893551bdf8418b8f43968b1894"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013319_compact_step_A_LL6_joint_repeat2",
+      "metadata_sha256": "0e42a8120bbf5e8ea1216de143566e2d2675a095d129a49bed7d24193c569c04",
+      "telemetry_sha256": "30021f87b4850c61fd3df06807e79247fc9dc0e40b37f4c54d37da879334dea6"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013511_compact_step_A_RL6_joint_repeat3",
+      "metadata_sha256": "d8676b3ad31af12fb8d74265a890553ebdfa54e903719567d2c9d58d201c315f",
+      "telemetry_sha256": "6e3055c78ecd064a66ed79fe03c3470c3fef4326f23794bcb21af9454f12dc9b"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013703_compact_step_A_LL6_joint_repeat3",
+      "metadata_sha256": "e1020ca5f1a14dd15bd3b64f39a51e1474ceeacc08a0fc488b8af364325143cc",
+      "telemetry_sha256": "1fbdd812140e03385a4668042b738e6fff50288dd8a0fab5f5d5c96db14c7eb3"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_014110_triangle_A_RL6_joint_repeat1",
+      "metadata_sha256": "787a1972fd95fcdb44043797e7740982539f8727afb0c4d29461a4a853add24f",
+      "telemetry_sha256": "3491382629ecc1102e9819b691f0938d15ff463469bf181a28c1137c11a8beff"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_014545_triangle_A_LL6_joint_repeat1",
+      "metadata_sha256": "be0b73bc1324105ac33c1f39a27bc4a799956b014c6352cc908ac715def21eca",
+      "telemetry_sha256": "6859a7bb7ec0c02878bf6bd9f3db6229db38ebd58899dbcd48ca79f5975a5f02"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_015020_triangle_A_RL6_joint_repeat2",
+      "metadata_sha256": "5ac12cee156516d852c525e1ad2664d46342e48e9acadcbd0513c2e334ab8e86",
+      "telemetry_sha256": "7b1e9e2016d1f5fdeff9e97b851305da871da8bb02e39c3339222535e3ec1ef4"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_015454_triangle_A_LL6_joint_repeat2",
+      "metadata_sha256": "9a1e112d24570406d43159ed27238b9e672344c144b2a448fdb22487d38855f9",
+      "telemetry_sha256": "acf4d605ccec8306db853c56da0f60a98b83bbac6a7d6a266881c4429176af31"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_015929_triangle_A_RL6_joint_repeat3",
+      "metadata_sha256": "f05076eff9d61db28e359056c73bb356f61487ddd489bc123b3184f9f235c6d1",
+      "telemetry_sha256": "10a338dffb9c8e2276c55e2a9c4226aa260302cd249bd35f78d7c2e5e0540750"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_020404_triangle_A_LL6_joint_repeat3",
+      "metadata_sha256": "fa01ca5fe7e53ffb28de7402bd523cbe2ba367f72edb93c7e34ffaf4f20e297e",
+      "telemetry_sha256": "a5554e9d636ee1299778dc73b66fe03a64e67998b780fb806222906f4fc9eccd"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_020658_multisine_A_RL6_joint_seed1_fit",
+      "metadata_sha256": "9a7f389dcced3be566c22065ac654db61f51a0f38b4c4848fd3a4f467bb2fa9f",
+      "telemetry_sha256": "5bc3c6789824b4662302c7402e2a7c91de1ea17254bee51a5d4af7ccd2a6b6d6"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_020932_multisine_A_LL6_joint_seed1_fit",
+      "metadata_sha256": "fc362699a3de977d16e74ad961faafb0a049e020b6d2b70b93459d70689de214",
+      "telemetry_sha256": "397a7f5ef2005980cddad0314ac09dcc747d5bc03b79f36c2f4f999fa0192c8e"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_021206_multisine_A_RL6_joint_seed2_fit",
+      "metadata_sha256": "ed794a170a98bcc3992efa710d13ad3a77ca9f34cf29480aba0365d2dfc68764",
+      "telemetry_sha256": "a1a1793cf71d2c18ff5c93c59dbe715e78fe305a747d331ecda618bafc6eaa5f"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_021440_multisine_A_LL6_joint_seed2_fit",
+      "metadata_sha256": "bc8569f31d793f6cb0ff5e1ac715f1b960e3936e6ca24013574ba5ab72d18257",
+      "telemetry_sha256": "72c5d700db4e6f9a1c9b4d6f10b6961e17d7110d6b416a1b36e868868bda6aca"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_021715_multisine_A_RL6_joint_seed3_validation",
+      "metadata_sha256": "a65ce0b75bf71cca44f2b8117d1d2bd7f36e727a308e32eb8a5a6d0e92c0b4fe",
+      "telemetry_sha256": "86f8517b3fd97b53f6a0f89c724a2b230b1faf18f7049104aa18fb1da272b9d2"
+    },
+    {
+      "condition": "P350",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_021949_multisine_A_LL6_joint_seed3_validation",
+      "metadata_sha256": "45b9b31ff7baf4403a6ff3c6007b2d825829548c40e6915b370fb8b612762f5d",
+      "telemetry_sha256": "eb0a738328dfe4269c4c2ac9894b1a49eeaa47b7d5550ae907c6987fbed88962"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_023855_compact_step_A_RL6_joint_repeat1",
+      "metadata_sha256": "575ef0dbbf4206da015bf962bebe599ca7cc800673cd5e6deaa17941499a8541",
+      "telemetry_sha256": "2fc4d0e46c434b02e5d27b4bda2ef4b3ba8e65885ff53802287ee119d054f0b8"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024104_compact_step_A_LL6_joint_repeat1",
+      "metadata_sha256": "037a07f62214009d01bb49d0144e65806936981def319364951067dadf8672fa",
+      "telemetry_sha256": "a1ec54f8125c100f63cd3a8e40fd11e2a4cf43aed9f1b147ee9bd17905ac5f8a"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024414_compact_step_A_RL6_joint_repeat2",
+      "metadata_sha256": "3826b189fb601f131e39c992cebc3d8c21196dbecac37f8937a8e51972296c01",
+      "telemetry_sha256": "84d24c50b089122020e586d563d5f5c637132c6c5e34cf2a6f5324e8a6d6777a"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024624_compact_step_A_LL6_joint_repeat2",
+      "metadata_sha256": "f7c7191503bba26aef0e54872d8b4cb05c6ef9d686435f0106e597b4e532b5d2",
+      "telemetry_sha256": "30aa786d742b00878826f8811776f16cc3482cdcad63e210a715355a56beb6b9"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024934_compact_step_A_RL6_joint_repeat3",
+      "metadata_sha256": "fcac54301c5777acce0ae2af348632a03fcb129c37ddcc3369e6d017bcef2403",
+      "telemetry_sha256": "8f0ef1af77450fd9a306959fe39f4beec6f1cea14d7d891da9938c50f83f6f46"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "step",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_025144_compact_step_A_LL6_joint_repeat3",
+      "metadata_sha256": "0af0df0610e84eaca1d6f077fcdb44c94881c2dc78504aa0ffae970a23bef341",
+      "telemetry_sha256": "0cdb15366ecf28b5a8985c6099b030da7abdcf22ef5c853498511bdbf3ede468"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_025710_triangle_A_RL6_joint_repeat1",
+      "metadata_sha256": "a5201a30aa4883584d03c1e04a3f8d52fa11cfe94705c5123a204fd103789b27",
+      "telemetry_sha256": "86496f29466b0465e49322192ebd5e495a594b808d23b7bfb66f80c1c6693f79"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_030203_triangle_A_LL6_joint_repeat1",
+      "metadata_sha256": "848a7898cdee4b7ce4e3f8ea1626f494ce2d2508efa782a5ef01cad80f58e2d8",
+      "telemetry_sha256": "a2e7091e3fa0199da3d718c523eb1712e35dfa105037abee74aac08dfc7aadab"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_030755_triangle_A_RL6_joint_repeat2",
+      "metadata_sha256": "c430a6d69e0de13255ca6b7240f2dcef7d894ba8a05b8ca00496f50768b1896c",
+      "telemetry_sha256": "bc9f9e8417d2199de86dd5d48f2c5666b55b419048da44d2e8b39a989fa55aad"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_031248_triangle_A_LL6_joint_repeat2",
+      "metadata_sha256": "cbf6799d5f9157f9a08010438b35fe5023aa07f13bae02b6d92492dd3c55147b",
+      "telemetry_sha256": "d34969c41957718dd327b91dd0f9bb58d50e3dddc01f04f92b2339c95cc4266d"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_031841_triangle_A_RL6_joint_repeat3",
+      "metadata_sha256": "e33aa48e935d8ff6ed1dd297a84e3a91834f785835d2a6e21571000d9629a639",
+      "telemetry_sha256": "dd0b8493b4ade746e3b318cfdfa6e5559c2ebbe1cfa4de975be30fd2b8a5e06e"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "triangle",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_032333_triangle_A_LL6_joint_repeat3",
+      "metadata_sha256": "a94bf54f49cb2ad0cab5fa6a5fa8972a666647986d8ea162cfa42a16498ca95f",
+      "telemetry_sha256": "bc0db4b0b06ee5db4045a4d6b8bb48dba775007d732a5b2f5f65f8593bb30444"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_032746_multisine_A_RL6_joint_seed1_fit",
+      "metadata_sha256": "390bb1d8c32dbdb39d8c00c0cfd5643e61e57b57c14bd932401122e67607c0d7",
+      "telemetry_sha256": "359171fcef0f3fe0f79f623bcb291c3eda3f7a2dd248333797b30647951fd14c"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_033038_multisine_A_LL6_joint_seed1_fit",
+      "metadata_sha256": "2af8197ba28e970d36ba226ac1d330ed10cde81ad7390d27dbfeed6457ecfbbd",
+      "telemetry_sha256": "2ebd675bf0f726e3b2401db680eec486d16ce3d37c96795c69f7f1e3e3878dac"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_033430_multisine_A_RL6_joint_seed2_fit",
+      "metadata_sha256": "d34cc57ddd742135d1fa7a6801fb56cc4277c37b5ed9612b0fb5d088faec119e",
+      "telemetry_sha256": "f6f37f3dc9ccdb56497c9817a782476e6e037efb0c124b1f34579b6616dabf48"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_033722_multisine_A_LL6_joint_seed2_fit",
+      "metadata_sha256": "9a4bd4fb0e9e7a55fa7dfe249cbd3c510d3e8504fc5694b3479cfbe4ee4b2634",
+      "telemetry_sha256": "78abe7db966626cb4cf7098c705fce21357cc4ac35565250a48383e376b42c7e"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_034114_multisine_A_RL6_joint_seed3_validation",
+      "metadata_sha256": "9ed2d37a0a58d20f76d8100e37d164782192c18b7f5c6ebd4ff4e5771de98f59",
+      "telemetry_sha256": "b1e00285dc7979b439c49f5524dd6dcf092c8cebae5015ea9e97b60e76c65808"
+    },
+    {
+      "condition": "P850",
+      "trajectory": "multisine",
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_034407_multisine_A_LL6_joint_seed3_validation",
+      "metadata_sha256": "f60bf3fff18784676798e997ccffb1d19d3b5f249703a09a71e375d6bb203322",
+      "telemetry_sha256": "83b18d4c6838772533fa4f19edc5ccc45c21901bf33bd631d65815c2d9d8224b"
+    }
+  ]
+}

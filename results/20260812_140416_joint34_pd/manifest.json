@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "fit_config": "/home/noh/Jandi_real2sim/configs/joint34_pd.yaml",
+  "fit_config_sha256": "17a2932d92d79ccb6b6bbd96f180b0170aab77f410be421b1c1240349208aeb6",
+  "model_xml": "/home/noh/Jandi_mjlab/src/jandi_mjlab/assets/jandi/jandi_from_urdf.xml",
+  "model_xml_sha256": "2bb8b321d54b3c97fe96e0ce477b8cec4d0cb7c621422e5db12d69abdc11b205",
+  "campaigns": {
+    "P350": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812",
+    "P850": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812"
+  }
+}

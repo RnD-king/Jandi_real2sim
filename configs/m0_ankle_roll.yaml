@@ -1,0 +1,28 @@
+model_xml: /home/noh/Jandi_mjlab/src/jandi_mjlab/assets/jandi/jandi_from_urdf.xml
+physics_dt_sec: 0.002
+torque_limit_nm: 5.5
+
+# 현재 Jandi locomotion의 Ideal-PD 값. M0에서는 RL6/LL6만 공통 후보값으로 교체한다.
+kp_baseline: [7.0, 8.0, 10.0, 10.0, 10.0, 8.0, 7.0, 8.0, 10.0, 10.0, 10.0, 8.0]
+kd_baseline: [0.5, 0.7, 1.1, 0.9, 0.7, 0.7, 0.5, 0.7, 1.1, 0.9, 0.7, 0.7]
+
+target_joints: [RL6_joint, LL6_joint]
+pose_id: A
+initial_kp: 8.0
+initial_kd: 0.7
+kp_bounds: [2.0, 32.0]
+kd_bounds: [0.05, 3.5]
+
+# 2 ms 간격으로 공통 지연을 열거하고, 각 지연마다 Kp/Kd를 최적화한다.
+delay_min_sec: 0.0
+delay_max_sec: 0.050
+delay_step_sec: 0.002
+huber_delta_normalized: 0.10
+velocity_loss_weight: 0.0
+optimizer_maxiter: 50
+optimizer_max_evaluations: 80
+
+# 전체 26개 delay는 현재 PD로 1회씩만 screening한다. 손실이 가장 작은
+# 2개 후보와 각 후보의 양옆 1칸(2 ms)에서만 Kp/Kd를 정밀 최적화한다.
+delay_shortlist_count: 2
+delay_refine_radius_steps: 1

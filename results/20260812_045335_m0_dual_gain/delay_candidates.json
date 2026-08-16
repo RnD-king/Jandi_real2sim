@@ -1,0 +1,128 @@
+[
+  {
+    "delay_sec": 0.0,
+    "delay_ms": 0.0,
+    "joint_loss": 0.004908424552408247,
+    "conditions": {
+      "P350": {
+        "kp_eff": 1.4667790754671526,
+        "kd_eff": 0.15300452069051595,
+        "dynamic_loss": 0.003989549573155385,
+        "success": false,
+        "evaluations": 180
+      },
+      "P850": {
+        "kp_eff": 11.604294052459124,
+        "kd_eff": 0.62049311845537,
+        "dynamic_loss": 0.005827299531661109,
+        "success": false,
+        "evaluations": 180
+      }
+    }
+  },
+  {
+    "delay_sec": 0.002,
+    "delay_ms": 2.0,
+    "joint_loss": 0.004818383523816877,
+    "conditions": {
+      "P350": {
+        "kp_eff": 1.471446120843267,
+        "kd_eff": 0.15084983101943422,
+        "dynamic_loss": 0.0039038171996780605,
+        "success": false,
+        "evaluations": 180
+      },
+      "P850": {
+        "kp_eff": 13.856002220183546,
+        "kd_eff": 0.7036719972622735,
+        "dynamic_loss": 0.005732949847955693,
+        "success": true,
+        "evaluations": 92
+      }
+    }
+  },
+  {
+    "delay_sec": 0.004,
+    "delay_ms": 4.0,
+    "joint_loss": 0.00443522307455734,
+    "conditions": {
+      "P350": {
+        "kp_eff": 11.853883979804172,
+        "kd_eff": 1.130720542439883,
+        "dynamic_loss": 0.004300073250013842,
+        "success": false,
+        "evaluations": 180
+      },
+      "P850": {
+        "kp_eff": 1.2791047194694576,
+        "kd_eff": 0.07541646171401184,
+        "dynamic_loss": 0.004570372899100837,
+        "success": false,
+        "evaluations": 180
+      }
+    }
+  },
+  {
+    "delay_sec": 0.006,
+    "delay_ms": 6.0,
+    "joint_loss": 0.004422242357834016,
+    "conditions": {
+      "P350": {
+        "kp_eff": 1.91010345187695,
+        "kd_eff": 0.18616181512992924,
+        "dynamic_loss": 0.0037904674343688847,
+        "success": false,
+        "evaluations": 180
+      },
+      "P850": {
+        "kp_eff": 7.601489723810556,
+        "kd_eff": 0.3634727985309984,
+        "dynamic_loss": 0.005054017281299146,
+        "success": false,
+        "evaluations": 180
+      }
+    }
+  },
+  {
+    "delay_sec": 0.008,
+    "delay_ms": 8.0,
+    "joint_loss": 0.004333404196180693,
+    "conditions": {
+      "P350": {
+        "kp_eff": 11.217485014760769,
+        "kd_eff": 1.025494381503291,
+        "dynamic_loss": 0.003832379046491725,
+        "success": true,
+        "evaluations": 117
+      },
+      "P850": {
+        "kp_eff": 15.377082323863531,
+        "kd_eff": 0.6983154347659152,
+        "dynamic_loss": 0.004834429345869661,
+        "success": true,
+        "evaluations": 57
+      }
+    }
+  },
+  {
+    "delay_sec": 0.01,
+    "delay_ms": 10.0,
+    "joint_loss": 0.004323247110508271,
+    "conditions": {
+      "P350": {
+        "kp_eff": 3.5849824646529167,
+        "kd_eff": 0.3286711503927148,
+        "dynamic_loss": 0.003839984762794754,
+        "success": false,
+        "evaluations": 180
+      },
+      "P850": {
+        "kp_eff": 15.553853353780362,
+        "kd_eff": 0.6868686428917558,
+        "dynamic_loss": 0.004806509458221787,
+        "success": false,
+        "evaluations": 180
+      }
+    }
+  }
+]

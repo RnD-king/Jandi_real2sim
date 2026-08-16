@@ -1,0 +1,24 @@
+schema_version: 1
+
+# null은 의도적인 실행 잠금이다. 실제 사용할 레지스터 값으로 채운다.
+# Mode 5의 Goal Current는 Position PID가 요구하는 전류의 상한이다.
+mode5_registers:
+  operating_mode: 5
+
+  position_p_gain: 350
+  position_i_gain: 0
+  position_d_gain: 0
+
+  feedforward_1st_gain: 0
+  feedforward_2nd_gain: 0
+
+  profile_velocity: 0
+  profile_acceleration: 0
+
+  goal_current_raw: 900
+  expected_current_limit_raw: 900
+
+  goal_pwm_raw: 885
+  expected_pwm_limit_raw: 885
+
+  bus_watchdog_raw: 5

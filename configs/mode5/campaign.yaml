@@ -1,0 +1,36 @@
+# Mode 5 실험 조합표. 물리/제어/파형 값은 각 구성 파일에서 관리한다.
+schema_version: 2
+
+campaign:
+  id: mode5_mx106_ID_99
+  output_root: data/raw/mode5
+
+components:
+  hardware: hardware.yaml
+  controller: controller.yaml
+  conditions:
+    no_load: bench/no_load.yaml
+    loaded: bench/loaded.yaml
+  trajectories:
+    step: trajectories/step.yaml
+    triangle: trajectories/triangle.yaml
+    sine: trajectories/sine.yaml
+
+# repeat 1·2는 계산/fit, repeat 3은 고정 validation이다.
+repeats: [1, 2, 3]
+
+safety:
+  # 저진폭 pilot을 사람이 확인한 뒤에만 true로 변경한다.
+  pilot_approved: true
+  pilot_amplitude_rad: 0.035
+  # MX-106 기본 과열 차단 80°C보다 먼저 중단한다.
+  max_temperature_c: 75
+  # 제조사 동작 전압 하한은 10.0 V이므로 그 아래는 허용하지 않는다.
+  min_input_voltage_v: 10.0
+  # Goal Current 900(약 3.024 A) 바로 아래에서 비정상적인 지속 과전류만 중단한다.
+  max_abs_current_a: 2.80
+  # 하드웨어 PWM 한계(100%) 직전과 큰 기계적 걸림에서만 중단한다.
+  max_abs_pwm_percent: 98.0
+  max_abs_position_error_rad: 0.60
+  consecutive_state_samples: 3
+  between_runs_sec: 10.0

@@ -1,0 +1,59 @@
+campaign_id: campaign_20260811_all_joints_A
+data_root: /home/noh/Jandi_real2sim/data/raw/850_basic
+
+# 원본 폴더 이름을 정확히 고정한다. timestamp나 mtime으로 최신 run을 찾지 않는다.
+runs:
+  RL1_joint:
+    1: 20260811_091553_compact_step_A_RL1_joint_repeat1
+    2: 20260811_091618_compact_step_A_RL1_joint_repeat2
+    3: 20260811_091642_compact_step_A_RL1_joint_repeat3
+  RL2_joint:
+    1: 20260811_094011_compact_step_A_RL2_joint_repeat1
+    2: 20260811_094030_compact_step_A_RL2_joint_repeat2
+    3: 20260811_094049_compact_step_A_RL2_joint_repeat3
+  RL3_joint:
+    1: 20260811_091728_compact_step_A_RL3_joint_repeat1
+    2: 20260811_091755_compact_step_A_RL3_joint_repeat2
+    3: 20260811_091819_compact_step_A_RL3_joint_repeat3
+  RL4_joint:
+    1: 20260811_091947_compact_step_A_RL4_joint_repeat1
+    2: 20260811_091920_compact_step_A_RL4_joint_repeat2
+    3: 20260811_091852_compact_step_A_RL4_joint_repeat3
+  RL5_joint:
+    1: 20260811_092015_compact_step_A_RL5_joint_repeat1
+    2: 20260811_092039_compact_step_A_RL5_joint_repeat2
+    3: 20260811_092104_compact_step_A_RL5_joint_repeat3
+  RL6_joint:
+    1: 20260811_085444_compact_step_A_RL6_joint_repeat1
+    2: 20260811_085520_compact_step_A_RL6_joint_repeat2
+    3: 20260811_085548_compact_step_A_RL6_joint_repeat3
+  LL1_joint:
+    1: 20260811_092800_compact_step_A_LL1_joint_repeat1
+    2: 20260811_092828_compact_step_A_LL1_joint_repeat2
+    3: 20260811_092854_compact_step_A_LL1_joint_repeat3
+  LL2_joint:
+    1: 20260811_094113_compact_step_A_LL2_joint_repeat1
+    2: 20260811_094132_compact_step_A_LL2_joint_repeat2
+    3: 20260811_094151_compact_step_A_LL2_joint_repeat3
+  LL3_joint:
+    1: 20260811_092449_compact_step_A_LL3_joint_repeat1
+    2: 20260811_092539_compact_step_A_LL3_joint_repeat2
+    3: 20260811_092616_compact_step_A_LL3_joint_repeat3
+  LL4_joint:
+    1: 20260811_092303_compact_step_A_LL4_joint_repeat1
+    2: 20260811_092331_compact_step_A_LL4_joint_repeat2
+    3: 20260811_092403_compact_step_A_LL4_joint_repeat3
+  LL5_joint:
+    1: 20260811_092140_compact_step_A_LL5_joint_repeat1
+    2: 20260811_092211_compact_step_A_LL5_joint_repeat2
+    3: 20260811_092236_compact_step_A_LL5_joint_repeat3
+  LL6_joint:
+    1: 20260811_090944_compact_step_A_LL6_joint_repeat1
+    2: 20260811_091034_compact_step_A_LL6_joint_repeat2
+    3: 20260811_091058_compact_step_A_LL6_joint_repeat3
+
+# 이 run은 독립된 세 번째 측정이지만 metadata에 repeat=1/fit으로 잘못 기록됐다.
+# 원본 파일은 보존하고 campaign에서만 validation label을 바로잡는다.
+metadata_label_overrides:
+  - directory: 20260811_091642_compact_step_A_RL1_joint_repeat3
+    reason: third independent RL1 measurement; metadata label was recorded as repeat1

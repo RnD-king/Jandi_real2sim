@@ -1,0 +1,106 @@
+# jandi-r2s-collect-campaign \
+#   --spec configs/collection_campaign.yaml \
+#   --execute \
+#   --confirm MOVE_JANDI_CAMPAIGN
+
+# jandi-r2s-collect-campaign \
+#   --spec configs/collection_campaign.yaml \
+#   --resume \
+#   --execute \
+#   --confirm MOVE_JANDI_CAMPAIGN
+
+# 이 파일만 수정해서 실험 조건을 바꾼다. 단위는 rad, s, Hz이다.
+schema_version: 1
+
+campaign:
+  id: P850_multiamp_A_20260812
+  output_group: P850              # data/raw/<output_group>/<id>/
+  pose_id: A                      # A는 jandi_mx106.yaml의 walking pose
+
+# 전원 인가 후 각 run의 Torque On 직전에 다시 쓰고 readback한다.
+# 같은 MX-106이어도 필요하면 overrides에서 관절별로 다르게 지정할 수 있다.
+position_pid:
+  default: {p: 850, i: 0, d: 0}
+  overrides: {}
+  # overrides 예시:
+  #   RL3_joint: {p: 400, i: 0, d: 0}
+  #   LL3_joint: {p: 400, i: 0, d: 0}
+
+experiments:
+  - name: multi_amplitude_step
+    type: compact_step
+    enabled: true
+    joints: all
+    repeats: [1, 2, 3]
+    hold_sec: 1.0
+    # PD 동특성 식별용 중·대진폭. 작은 방향반전 특성은 triangle이 담당한다.
+    amplitudes_rad:
+      default: [0.05, 0.10, 0.15]
+      per_joint:
+        # 한쪽 XML 여유가 0.08 rad뿐이라 0.01 rad margin을 둔다.
+        RL2_joint: [0.03, 0.05, 0.07]
+        LL2_joint: [0.03, 0.05, 0.07]
+        # walking pose에서 한쪽 XML 여유가 정확히 0.15 rad라 경계에 닿지 않는다.
+        RL4_joint: [0.05, 0.10, 0.14]
+        LL4_joint: [0.05, 0.10, 0.14]
+
+  # 백래시·정지마찰 측정. 필요할 때 enabled만 true로 바꾼다.
+  - name: slow_triangle
+    type: triangle
+    enabled: true
+    joints: all
+    repeats: [1, 2, 3]
+    amplitude_rad:
+      default: 0.07
+      per_joint:
+        RL2_joint: 0.05
+        LL2_joint: 0.05
+    frequency_hz: 0.10
+    cycles: 4
+    max_command_speed_rad_s: 0.50
+
+  # 주파수 응답 측정. seed별 역할도 이곳에서 고정한다.
+  - name: policy_band_multisine
+    type: multisine
+    enabled: true
+    joints: all
+    amplitude_rad:
+      default: 0.06
+      per_joint:
+        RL2_joint: 0.045
+        LL2_joint: 0.045
+    frequencies_hz: [0.25, 0.50, 1.00, 2.00]
+    duration_sec: 20.0
+    fade_sec: 1.0
+    max_command_speed_rad_s: 0.50
+    seeds:
+      - {seed: 1, split_role: fit}
+      - {seed: 2, split_role: fit}
+      - {seed: 3, split_role: validation}
+
+  # 자세 처짐/noise floor가 필요할 때 활성화한다.
+  - name: walking_pose_hold
+    type: static_hold
+    enabled: true
+    repeats: [1, 2, 3]
+    duration_sec: 10.0
+
+logging:
+  record_transition: false
+  command_rate_hz: 100
+  state_read_rate_hz: 99
+  hardware_error_read_rate_hz: 1
+  fields: full_actuator_state       # q/dq/current/PWM/voltage/temp + command
+
+# 모든 값은 12개 모터 각각에 적용된다. 단발 통신 spike로 중단하지 않도록
+# state limit은 연속 5표본(약 50 ms) 초과 시 Torque Off한다.
+safety:
+  max_temperature_c: 55
+  min_input_voltage_v: 9.6
+  max_abs_current_a: 2.5
+  max_abs_pwm_percent: 85.0
+  max_abs_position_error_rad: 0.25
+  consecutive_state_samples: 5
+  between_jobs_sec: 3.0
+  cooldown_every_executed_jobs: 12
+  cooldown_sec: 60.0

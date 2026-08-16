@@ -1,0 +1,52 @@
+schema_version: 1
+adopted_at: "2026-08-12"
+description: >-
+  Jandi MX-106R 2.0의 채택용 출력축 등가 PD nominal. 원시 최적화값을
+  실용적인 유효숫자로 반올림한 값이며, PWM/전기 모델이 아니다.
+
+source_result:
+  directory: /home/noh/Jandi_real2sim/results/20260812_110700_equivalent_pd
+  fitted_on: [RL6_joint, LL6_joint]
+  fit_repeats: [1, 2]
+  validation_repeat: 3
+  validation_scope: all_12_joints
+
+shared:
+  command_delay_sec: 0.010
+  equivalent_backlash_total_rad: 0.009
+  equivalent_backlash_total_deg: 0.5
+  coulomb_friction_nm: 0.003
+  torque_limit_nm: 5.5
+
+position_p_conditions:
+  P350:
+    dynamixel_position_p_register: 350
+    kp_eff_nm_per_rad: 6.0
+    kd_eff_nm_s_per_rad: 0.6
+  P850:
+    dynamixel_position_p_register: 850
+    kp_eff_nm_per_rad: 14.6
+    kd_eff_nm_s_per_rad: 0.6
+
+recommended_training_nominal: P350
+
+interpretation:
+  command_delay_resolution_note: >-
+    100 Hz 실측으로 식별했으므로 10 ms 단일값보다 약 8~12 ms 범위가
+    더 정직한 해석이다.
+  backlash_model_note: >-
+    상태를 가진 기어 치합 모델이 아니라 PD 위치오차에 적용하는 대칭
+    등가 deadband의 전체 폭이다.
+  friction_note: >-
+    식별력이 낮고 사실상 0에 가까운 값이다. 지면 접촉 마찰계수와는
+    전혀 다른 관절축 Coulomb 마찰 토크다.
+  applicability_note: >-
+    RL6/LL6에서 식별한 공통 MX-106 등가값이다. 1~5번 관절의 링크 부하와
+    실제 지지조건 차이는 MuJoCo 링크 동역학 및 별도 검증으로 다룬다.
+
+suggested_initial_randomization:
+  command_delay_sec: [0.008, 0.012]
+  equivalent_backlash_total_rad: [0.006, 0.012]
+  coulomb_friction_nm: [0.0, 0.010]
+  kp_scale: [0.85, 1.15]
+  kd_scale: [0.85, 1.15]

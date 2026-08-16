@@ -1,0 +1,12 @@
+model: M0_dual_gain
+shared_delay_sec: 0.01
+shared_delay_ms: 10.0
+conditions:
+  P350:
+    register_p: 350
+    kp_eff: 3.5849824646529167
+    kd_eff: 0.3286711503927148
+  P850:
+    register_p: 850
+    kp_eff: 15.553853353780362
+    kd_eff: 0.6868686428917558

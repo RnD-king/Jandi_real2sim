@@ -1,0 +1,12 @@
+schema_version: 1
+condition: no_load
+
+# 진짜 무부하 조건: 모터 출력축에는 혼만 장착하고 막대기와 추는 제거한다.
+bench:
+  bare_horn: true
+  gravity_zero_offset_rad: 0.0
+  arm_mass_kg: 0.0
+  arm_com_radius_m: 0.0
+  arm_inertia_kg_m2: 0.0
+  added_load_mass_kg: 0.0
+  added_load_radius_m: 0.0

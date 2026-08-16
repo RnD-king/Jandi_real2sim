@@ -1,0 +1,110 @@
+[
+  {
+    "stage": "triangle_friction",
+    "start_index": 1,
+    "active_parameters": [
+      "drive_gain_nm_per_duty",
+      "coulomb_friction_nm"
+    ],
+    "loss": 0.03617288382413508,
+    "success": false,
+    "evaluations": 120,
+    "parameters": {
+      "drive_gain_nm_per_duty": 5.69229062380042,
+      "armature_kg_m2": 0.024,
+      "coulomb_friction_nm": 0.18315103836818014,
+      "viscous_friction_nm_s_per_rad": 0.05
+    }
+  },
+  {
+    "stage": "triangle_friction",
+    "start_index": 2,
+    "active_parameters": [
+      "drive_gain_nm_per_duty",
+      "coulomb_friction_nm"
+    ],
+    "loss": 0.03117751601459226,
+    "success": false,
+    "evaluations": 120,
+    "parameters": {
+      "drive_gain_nm_per_duty": 8.960898221567396,
+      "armature_kg_m2": 0.024,
+      "coulomb_friction_nm": 0.38413534714351966,
+      "viscous_friction_nm_s_per_rad": 0.05
+    }
+  },
+  {
+    "stage": "multisine_dynamics",
+    "start_index": 1,
+    "active_parameters": [
+      "drive_gain_nm_per_duty",
+      "armature_kg_m2",
+      "viscous_friction_nm_s_per_rad"
+    ],
+    "loss": 0.028527444239967413,
+    "success": false,
+    "evaluations": 180,
+    "parameters": {
+      "drive_gain_nm_per_duty": 4.841021530673283,
+      "armature_kg_m2": 0.0079818035992523,
+      "coulomb_friction_nm": 0.38413534714351966,
+      "viscous_friction_nm_s_per_rad": 1.0753553127129667e-07
+    }
+  },
+  {
+    "stage": "multisine_dynamics",
+    "start_index": 2,
+    "active_parameters": [
+      "drive_gain_nm_per_duty",
+      "armature_kg_m2",
+      "viscous_friction_nm_s_per_rad"
+    ],
+    "loss": 0.028572990463542995,
+    "success": false,
+    "evaluations": 180,
+    "parameters": {
+      "drive_gain_nm_per_duty": 5.072198670009339,
+      "armature_kg_m2": 0.008326747743960415,
+      "coulomb_friction_nm": 0.38413534714351966,
+      "viscous_friction_nm_s_per_rad": 0.1895353548587926
+    }
+  },
+  {
+    "stage": "joint_refinement",
+    "start_index": 1,
+    "active_parameters": [
+      "drive_gain_nm_per_duty",
+      "armature_kg_m2",
+      "coulomb_friction_nm",
+      "viscous_friction_nm_s_per_rad"
+    ],
+    "loss": 0.0276546711748968,
+    "success": false,
+    "evaluations": 180,
+    "parameters": {
+      "drive_gain_nm_per_duty": 2.420510769782989,
+      "armature_kg_m2": 0.004051980468407159,
+      "coulomb_friction_nm": 0.5761552200150222,
+      "viscous_friction_nm_s_per_rad": 0.049943504890417156
+    }
+  },
+  {
+    "stage": "joint_refinement",
+    "start_index": 2,
+    "active_parameters": [
+      "drive_gain_nm_per_duty",
+      "armature_kg_m2",
+      "coulomb_friction_nm",
+      "viscous_friction_nm_s_per_rad"
+    ],
+    "loss": 0.027654678952715523,
+    "success": false,
+    "evaluations": 180,
+    "parameters": {
+      "drive_gain_nm_per_duty": 2.4205107685594367,
+      "armature_kg_m2": 0.004051926934496021,
+      "coulomb_friction_nm": 0.5761526377475746,
+      "viscous_friction_nm_s_per_rad": 0.04994334178857533
+    }
+  }
+]

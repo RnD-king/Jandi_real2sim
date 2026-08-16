@@ -1,0 +1,182 @@
+{
+  "P350": [
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_012743_compact_step_A_RL6_joint_repeat1",
+      "joint": "RL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "dynamic": 0.00028586357341810377,
+      "velocity": 0.02338081218279731,
+      "plateau": 0.0003997735897583032,
+      "combined_loss": 0.0032236051763352897,
+      "full_mae_rad": 0.002042176987535727,
+      "full_rmse_rad": 0.0025107140721883528
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_012935_compact_step_A_LL6_joint_repeat1",
+      "joint": "LL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "dynamic": 0.0009840217401141116,
+      "velocity": 0.022089821554913635,
+      "plateau": 0.0008246593972192864,
+      "combined_loss": 0.004429992991434405,
+      "full_mae_rad": 0.002432659888170804,
+      "full_rmse_rad": 0.003012553247983229
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013127_compact_step_A_RL6_joint_repeat2",
+      "joint": "RL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "dynamic": 0.0002821550384063516,
+      "velocity": 0.024297990190203553,
+      "plateau": 0.00039153306520261485,
+      "combined_loss": 0.003299253655230629,
+      "full_mae_rad": 0.0019831510753344776,
+      "full_rmse_rad": 0.0024193505011855833
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013319_compact_step_A_LL6_joint_repeat2",
+      "joint": "LL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "dynamic": 0.0006804938510874813,
+      "velocity": 0.022188020297837254,
+      "plateau": 0.0004211842344065658,
+      "combined_loss": 0.0035310722324810554,
+      "full_mae_rad": 0.0023397259405274276,
+      "full_rmse_rad": 0.002998705527778791
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013511_compact_step_A_RL6_joint_repeat3",
+      "joint": "RL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "dynamic": 0.0002878153427695672,
+      "velocity": 0.024170397909898746,
+      "plateau": 0.00039138721018228215,
+      "combined_loss": 0.0032919359490328655,
+      "full_mae_rad": 0.0019430577890405614,
+      "full_rmse_rad": 0.0023914972909945234
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013703_compact_step_A_LL6_joint_repeat3",
+      "joint": "LL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "dynamic": 0.0007356930292239275,
+      "velocity": 0.02202530945562124,
+      "plateau": 0.0003997016916489088,
+      "combined_loss": 0.003537776512259415,
+      "full_mae_rad": 0.002350564738163862,
+      "full_rmse_rad": 0.00299617564904929
+    }
+  ],
+  "P350_fit_mean": {
+    "dynamic": 0.0005581335507565121,
+    "velocity": 0.02298916105643794,
+    "plateau": 0.0005092875716466926,
+    "combined_loss": 0.0036209810138703447,
+    "full_mae_rad": 0.002199428472892109,
+    "full_rmse_rad": 0.002735330837283989
+  },
+  "P350_validation_mean": {
+    "dynamic": 0.0005117541859967473,
+    "velocity": 0.023097853682759992,
+    "plateau": 0.0003955444509155955,
+    "combined_loss": 0.00341485623064614,
+    "full_mae_rad": 0.0021468112636022114,
+    "full_rmse_rad": 0.0026938364700219066
+  },
+  "P850": [
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_023855_compact_step_A_RL6_joint_repeat1",
+      "joint": "RL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "dynamic": 0.0006372880059898209,
+      "velocity": 0.037925174662470564,
+      "plateau": 0.0003146035744053283,
+      "combined_loss": 0.00490171083384487,
+      "full_mae_rad": 0.002468514980280738,
+      "full_rmse_rad": 0.003314754808234498
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024104_compact_step_A_LL6_joint_repeat1",
+      "joint": "LL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "dynamic": 0.0004981521230142887,
+      "velocity": 0.03711398339525333,
+      "plateau": 0.00042347964457858543,
+      "combined_loss": 0.0048447699294075,
+      "full_mae_rad": 0.0024765228051846534,
+      "full_rmse_rad": 0.003101368544061028
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024414_compact_step_A_RL6_joint_repeat2",
+      "joint": "RL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "dynamic": 0.000472331212621374,
+      "velocity": 0.04019563430225389,
+      "plateau": 0.00038916389274075723,
+      "combined_loss": 0.005075640481957899,
+      "full_mae_rad": 0.002225351808911005,
+      "full_rmse_rad": 0.0029001372976211275
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024624_compact_step_A_LL6_joint_repeat2",
+      "joint": "LL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "dynamic": 0.0005277065390221022,
+      "velocity": 0.036774395905352635,
+      "plateau": 0.000358254191203533,
+      "combined_loss": 0.004742527416362665,
+      "full_mae_rad": 0.0021851741502867594,
+      "full_rmse_rad": 0.0028235684429616477
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024934_compact_step_A_RL6_joint_repeat3",
+      "joint": "RL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "dynamic": 0.00037108121697167776,
+      "velocity": 0.039825819387407466,
+      "plateau": 0.0003988925106938083,
+      "combined_loss": 0.004952001921753137,
+      "full_mae_rad": 0.00229442224381267,
+      "full_rmse_rad": 0.0028279167779415833
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_025144_compact_step_A_LL6_joint_repeat3",
+      "joint": "LL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "dynamic": 0.0005118398378622947,
+      "velocity": 0.035568618405441066,
+      "plateau": 0.000280579644161898,
+      "combined_loss": 0.004489571144649249,
+      "full_mae_rad": 0.0021885743206814254,
+      "full_rmse_rad": 0.002820358606745658
+    }
+  ],
+  "P850_fit_mean": {
+    "dynamic": 0.0005338694701618965,
+    "velocity": 0.03800229706633261,
+    "plateau": 0.000371375325732051,
+    "combined_loss": 0.004891162165393233,
+    "full_mae_rad": 0.0023388909361657887,
+    "full_rmse_rad": 0.003034957273219575
+  },
+  "P850_validation_mean": {
+    "dynamic": 0.00044146052741698624,
+    "velocity": 0.037697218896424266,
+    "plateau": 0.0003397360774278532,
+    "combined_loss": 0.004720786533201193,
+    "full_mae_rad": 0.0022414982822470475,
+    "full_rmse_rad": 0.002824137692343621
+  }
+}

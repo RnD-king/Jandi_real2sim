@@ -1,0 +1,39 @@
+model_xml: /home/noh/Jandi_mjlab/src/jandi_mjlab/assets/jandi/jandi_from_urdf.xml
+physics_dt_sec: 0.002
+torque_limit_nm: 5.5
+
+# MuJoCo 순서 RL1..RL6, LL1..LL6. 식별 대상 외 관절에만 사용한다.
+kp_baseline: [7.0, 8.0, 10.0, 10.0, 10.0, 8.0, 7.0, 8.0, 10.0, 10.0, 10.0, 8.0]
+kd_baseline: [0.5, 0.7, 1.1, 0.9, 0.7, 0.7, 0.5, 0.7, 1.1, 0.9, 0.7, 0.7]
+
+target_joints: [RL6_joint, LL6_joint]
+pose_id: A
+
+# P350/P850은 하나의 command delay를 공유하고 PD만 독립적으로 식별한다.
+gain_conditions:
+  P350:
+    register_p: 350
+    initial_kp: 4.0
+    initial_kd: 0.35
+  P850:
+    register_p: 850
+    initial_kp: 12.0
+    initial_kd: 0.70
+
+kp_bounds: [0.5, 30.0]
+kd_bounds: [0.02, 3.0]
+
+# 500 Hz physics와 정확히 맞는 2 ms 격자에서 모든 후보를 PD와 함께 최적화한다.
+delay_min_sec: 0.0
+delay_max_sec: 0.010
+delay_step_sec: 0.002
+
+# 각 step edge 뒤의 동적 구간만 사용한다. plateau의 방향 의존 잔류오차는
+# 다음 friction/backlash 모델에서 다루고 현재 PD/delay loss에는 넣지 않는다.
+transient_window_sec: 0.40
+plateau_tail_sec: 0.20
+huber_delta_normalized: 0.10
+velocity_loss_weight: 0.10
+optimizer_maxiter: 80
+optimizer_max_evaluations: 180
+

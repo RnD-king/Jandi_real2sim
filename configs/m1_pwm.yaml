@@ -1,0 +1,42 @@
+model_xml: /home/noh/Jandi_mjlab/src/jandi_mjlab/assets/jandi/jandi_from_urdf.xml
+robot_config: /home/noh/Jandi_real2sim/configs/jandi_mx106.yaml
+
+# 실기체 command/state는 100 Hz, MuJoCo 내부 동역학은 500 Hz로 재생한다.
+physics_dt_sec: 0.002
+nominal_voltage_v: 12.0
+torque_limit_nm: 5.5
+
+target_joints: [RL6_joint, LL6_joint]
+pose_id: A
+gain_conditions:
+  P350: {register_p: 350}
+  P850: {register_p: 850}
+
+# 네 파라미터는 P350/P850과 좌우 MX-106에 공통이다. 여러 시작점이 같은
+# 해로 수렴하는지 확인해 단일 local optimum을 물리값으로 오인하지 않는다.
+initial_starts:
+  - drive_gain_nm_per_duty: 8.4
+    armature_kg_m2: 0.025
+    coulomb_friction_nm: 0.10
+    viscous_friction_nm_s_per_rad: 0.05
+  - drive_gain_nm_per_duty: 5.5
+    armature_kg_m2: 0.010
+    coulomb_friction_nm: 0.25
+    viscous_friction_nm_s_per_rad: 0.15
+  - drive_gain_nm_per_duty: 10.0
+    armature_kg_m2: 0.045
+    coulomb_friction_nm: 0.40
+    viscous_friction_nm_s_per_rad: 0.30
+
+# 출력축 등가 파라미터의 안전한 탐색범위. 정확한 MX-106 물성 범위가 아니라
+# 현재 데이터에서 비식별적인 극단값으로 달아나는 것을 막는 식별용 범위다.
+bounds:
+  drive_gain_nm_per_duty: [2.0, 12.0]
+  armature_kg_m2: [0.0001, 0.080]
+  coulomb_friction_nm: [0.0, 1.5]
+  viscous_friction_nm_s_per_rad: [0.0, 1.0]
+
+huber_delta_normalized: 0.10
+velocity_loss_weight: 0.10
+optimizer_maxiter: 80
+optimizer_max_evaluations: 240

@@ -1,0 +1,11 @@
+schema_version: 1
+trajectory: sine
+parameters:
+  # 고주파일수록 진폭을 줄여 최대 속도와 부하를 제한한다.
+  points:
+    - {frequency_hz: 0.25, amplitude_rad: 0.070}
+    - {frequency_hz: 0.50, amplitude_rad: 0.060}
+    - {frequency_hz: 1.00, amplitude_rad: 0.045}
+    - {frequency_hz: 2.00, amplitude_rad: 0.025}
+  cycles_each: 5
+  center_hold_sec: 1.0

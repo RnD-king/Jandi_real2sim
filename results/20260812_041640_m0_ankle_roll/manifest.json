@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "method": "M0 common delay + shared RL6/LL6 effective PD",
+  "campaign_id": null,
+  "campaign_source": null,
+  "campaign_sha256": null,
+  "fit_config": "/home/noh/Jandi_real2sim/configs/m0_ankle_roll.yaml",
+  "fit_config_sha256": "8911ef9503ec89c174a3e0d4967f190dbed842ce44cd714f49aa622a44681ddf",
+  "model_xml": "/home/noh/Jandi_mjlab/src/jandi_mjlab/assets/jandi/jandi_from_urdf.xml",
+  "model_xml_sha256": "2bb8b321d54b3c97fe96e0ce477b8cec4d0cb7c621422e5db12d69abdc11b205",
+  "runs": [
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_012743_compact_step_A_RL6_joint_repeat1",
+      "joint": "RL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "metadata_sha256": "d4245aa8b0512bf50bf30778456002dff57a49983e68f502fee4f0d59a22da17",
+      "telemetry_sha256": "2c44a9e59059763b3a1f606b2dc0644428077db40df0fcfd7925533dd700ab1a"
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013127_compact_step_A_RL6_joint_repeat2",
+      "joint": "RL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "metadata_sha256": "7f1c2943d313a47acc5971ca4f59de98132e2c48f8e56f18aef7c2c562a3ca88",
+      "telemetry_sha256": "77212b5fd99a6e3dfc7ae8c49316a78f21fa77893551bdf8418b8f43968b1894"
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013511_compact_step_A_RL6_joint_repeat3",
+      "joint": "RL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "metadata_sha256": "d8676b3ad31af12fb8d74265a890553ebdfa54e903719567d2c9d58d201c315f",
+      "telemetry_sha256": "6e3055c78ecd064a66ed79fe03c3470c3fef4326f23794bcb21af9454f12dc9b"
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_012935_compact_step_A_LL6_joint_repeat1",
+      "joint": "LL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "metadata_sha256": "961e8737ecb48884142f4c5e329e53f1e9e09c7c059ab6d20c27a9f5001d21ae",
+      "telemetry_sha256": "5b5963e597929ebaf2159b91c5931eba6bcedbaca53730e74ddaebbd0261b63f"
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013319_compact_step_A_LL6_joint_repeat2",
+      "joint": "LL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "metadata_sha256": "0e42a8120bbf5e8ea1216de143566e2d2675a095d129a49bed7d24193c569c04",
+      "telemetry_sha256": "30021f87b4850c61fd3df06807e79247fc9dc0e40b37f4c54d37da879334dea6"
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013703_compact_step_A_LL6_joint_repeat3",
+      "joint": "LL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "metadata_sha256": "e1020ca5f1a14dd15bd3b64f39a51e1474ceeacc08a0fc488b8af364325143cc",
+      "telemetry_sha256": "1fbdd812140e03385a4668042b738e6fff50288dd8a0fab5f5d5c96db14c7eb3"
+    }
+  ]
+}

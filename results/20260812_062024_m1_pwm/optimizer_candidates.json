@@ -1,0 +1,38 @@
+[
+  {
+    "start_index": 1,
+    "fit_loss": 0.007204898511392553,
+    "success": false,
+    "evaluations": 240,
+    "parameters": {
+      "drive_gain_nm_per_duty": 2.0000058019838907,
+      "armature_kg_m2": 0.014191036786291661,
+      "coulomb_friction_nm": 0.08093376898557779,
+      "viscous_friction_nm_s_per_rad": 0.3536776238269282
+    }
+  },
+  {
+    "start_index": 2,
+    "fit_loss": 0.0059444858251492885,
+    "success": false,
+    "evaluations": 240,
+    "parameters": {
+      "drive_gain_nm_per_duty": 2.0671125441310814,
+      "armature_kg_m2": 0.012403533385892097,
+      "coulomb_friction_nm": 0.05686599802851194,
+      "viscous_friction_nm_s_per_rad": 0.40576712029969325
+    }
+  },
+  {
+    "start_index": 3,
+    "fit_loss": 0.004915756612693191,
+    "success": false,
+    "evaluations": 240,
+    "parameters": {
+      "drive_gain_nm_per_duty": 4.260615424881648,
+      "armature_kg_m2": 0.022750980661693482,
+      "coulomb_friction_nm": 0.07089546390251897,
+      "viscous_friction_nm_s_per_rad": 0.931167002526967
+    }
+  }
+]

@@ -1,0 +1,198 @@
+{
+  "P350": [
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_012743_compact_step_A_RL6_joint_repeat1",
+      "joint": "RL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "loss": 0.0027597792041084345,
+      "q_mae_rad": 0.007127019547993349,
+      "q_rmse_rad": 0.00979611196479699,
+      "dq_mae_rad_s": 0.0518674863690932,
+      "max_abs_drive_torque_nm": 1.262618537211631,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.31751412429378534,
+      "sample_substep": 4
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_012935_compact_step_A_LL6_joint_repeat1",
+      "joint": "LL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "loss": 0.00612163318374924,
+      "q_mae_rad": 0.014162246552486615,
+      "q_rmse_rad": 0.017530817892680014,
+      "dq_mae_rad_s": 0.05222840008764747,
+      "max_abs_drive_torque_nm": 1.323679334543739,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.31864406779661014,
+      "sample_substep": 3
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013127_compact_step_A_RL6_joint_repeat2",
+      "joint": "RL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "loss": 0.0028769877943205825,
+      "q_mae_rad": 0.00749679146631691,
+      "q_rmse_rad": 0.010016128569892079,
+      "dq_mae_rad_s": 0.051711096126195275,
+      "max_abs_drive_torque_nm": 1.2647047142558292,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.32090395480225986,
+      "sample_substep": 4
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013319_compact_step_A_LL6_joint_repeat2",
+      "joint": "LL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "loss": 0.0025797485488606537,
+      "q_mae_rad": 0.007153362598430723,
+      "q_rmse_rad": 0.009231173449160973,
+      "dq_mae_rad_s": 0.05349790168237937,
+      "max_abs_drive_torque_nm": 1.323679334543739,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.31864406779661014,
+      "sample_substep": 3
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013511_compact_step_A_RL6_joint_repeat3",
+      "joint": "RL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "loss": 0.002961866288445317,
+      "q_mae_rad": 0.007413303372822672,
+      "q_rmse_rad": 0.010274957619423547,
+      "dq_mae_rad_s": 0.05164183540908999,
+      "max_abs_drive_torque_nm": 1.2513451574150987,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.31751412429378534,
+      "sample_substep": 4
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P350/P350_multiamp_A_20260812/runs/20260812_013703_compact_step_A_LL6_joint_repeat3",
+      "joint": "LL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "loss": 0.0057523967454708395,
+      "q_mae_rad": 0.012655686699620378,
+      "q_rmse_rad": 0.016587291403265862,
+      "dq_mae_rad_s": 0.05238502661406804,
+      "max_abs_drive_torque_nm": 1.3302588159908257,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.31864406779661014,
+      "sample_substep": 3
+    }
+  ],
+  "P350_fit_mean": {
+    "loss": 0.003584537182759728,
+    "q_mae_rad": 0.0089848550413069,
+    "q_rmse_rad": 0.011643557969132514,
+    "dq_mae_rad_s": 0.05232622106632883
+  },
+  "P350_validation_mean": {
+    "loss": 0.004357131516958078,
+    "q_mae_rad": 0.010034495036221525,
+    "q_rmse_rad": 0.013431124511344705,
+    "dq_mae_rad_s": 0.052013431011579014
+  },
+  "P850": [
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_023855_compact_step_A_RL6_joint_repeat1",
+      "joint": "RL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "loss": 0.003029063014168944,
+      "q_mae_rad": 0.007222042757260871,
+      "q_rmse_rad": 0.010050626593734246,
+      "dq_mae_rad_s": 0.09116360093224779,
+      "max_abs_drive_torque_nm": 3.009390623834484,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.7435028248587571,
+      "sample_substep": 4
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024104_compact_step_A_LL6_joint_repeat1",
+      "joint": "LL6_joint",
+      "repeat_index": 1,
+      "split_role": "fit",
+      "loss": 0.01671955386051423,
+      "q_mae_rad": 0.030554714078194566,
+      "q_rmse_rad": 0.04023965872964148,
+      "dq_mae_rad_s": 0.08774633647298986,
+      "max_abs_drive_torque_nm": 3.143387380134905,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.7502824858757062,
+      "sample_substep": 3
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024414_compact_step_A_RL6_joint_repeat2",
+      "joint": "RL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "loss": 0.002278527483128268,
+      "q_mae_rad": 0.004637880010656403,
+      "q_rmse_rad": 0.006975338578746332,
+      "dq_mae_rad_s": 0.08599328324564254,
+      "max_abs_drive_torque_nm": 3.0414054177050636,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.751412429378531,
+      "sample_substep": 4
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024624_compact_step_A_LL6_joint_repeat2",
+      "joint": "LL6_joint",
+      "repeat_index": 2,
+      "split_role": "fit",
+      "loss": 0.0029607598126951684,
+      "q_mae_rad": 0.007059852031931031,
+      "q_rmse_rad": 0.009548148016627804,
+      "dq_mae_rad_s": 0.08609875788792577,
+      "max_abs_drive_torque_nm": 3.170026256237743,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.751412429378531,
+      "sample_substep": 3
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_024934_compact_step_A_RL6_joint_repeat3",
+      "joint": "RL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "loss": 0.002031392918862483,
+      "q_mae_rad": 0.004032784478164733,
+      "q_rmse_rad": 0.006087572871247552,
+      "dq_mae_rad_s": 0.08619435941562366,
+      "max_abs_drive_torque_nm": 3.035788787201453,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.7435028248587571,
+      "sample_substep": 4
+    },
+    {
+      "run_dir": "/home/noh/Jandi_real2sim/data/raw/P850/P850_multiamp_A_20260812/runs/20260812_025144_compact_step_A_LL6_joint_repeat3",
+      "joint": "LL6_joint",
+      "repeat_index": 3,
+      "split_role": "validation",
+      "loss": 0.013653057048644076,
+      "q_mae_rad": 0.024903844065901497,
+      "q_rmse_rad": 0.030332310182932646,
+      "dq_mae_rad_s": 0.0868924018891673,
+      "max_abs_drive_torque_nm": 3.148121397273662,
+      "torque_saturation_fraction": 0.0,
+      "max_abs_pwm_duty": 0.751412429378531,
+      "sample_substep": 3
+    }
+  ],
+  "P850_fit_mean": {
+    "loss": 0.0062469760426266535,
+    "q_mae_rad": 0.012368622219510718,
+    "q_rmse_rad": 0.016703442979687465,
+    "dq_mae_rad_s": 0.08775049463470148
+  },
+  "P850_validation_mean": {
+    "loss": 0.00784222498375328,
+    "q_mae_rad": 0.014468314272033114,
+    "q_rmse_rad": 0.018209941527090098,
+    "dq_mae_rad_s": 0.08654338065239547
+  }
+}

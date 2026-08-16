@@ -1,0 +1,44 @@
+[project]
+name = "jandi-real2sim"
+version = "0.1.0"
+description = "100 Hz MX-106 data collection and Real-to-Sim identification for Jandi"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "dynamixel-sdk>=3.8,<4",
+    "matplotlib>=3.9,<4",
+    "mujoco>=3.3,<4",
+    "numpy>=1.26,<2.5",
+    "pyyaml>=6,<7",
+    "scipy>=1.14,<2",
+]
+
+[project.scripts]
+jandi-r2s-check = "jandi_real2sim.cli.check_config:main"
+jandi-r2s-pose = "jandi_real2sim.cli.set_walking_pose:main"
+jandi-r2s-joint-test = "jandi_real2sim.cli.test_single_joint:main"
+jandi-r2s-hold = "jandi_real2sim.cli.collect_hold:main"
+jandi-r2s-step-id = "jandi_real2sim.cli.collect_step:main"
+jandi-r2s-triangle = "jandi_real2sim.cli.collect_triangle:main"
+jandi-r2s-multisine = "jandi_real2sim.cli.collect_multisine:main"
+jandi-r2s-validate = "jandi_real2sim.cli.validate_run:main"
+jandi-r2s-fit-m0 = "jandi_real2sim.cli.fit_m0:main"
+jandi-r2s-fit-m0-dual = "jandi_real2sim.cli.fit_m0_dual_gain:main"
+jandi-r2s-fit-m1-pwm = "jandi_real2sim.cli.fit_m1_pwm:main"
+jandi-r2s-fit-m1-staged = "jandi_real2sim.cli.fit_m1_staged:main"
+jandi-r2s-fit-equivalent-pd = "jandi_real2sim.cli.fit_equivalent_pd:main"
+jandi-r2s-fit-joint34-pd = "jandi_real2sim.cli.fit_joint34_pd:main"
+jandi-r2s-campaign-check = "jandi_real2sim.cli.check_campaign:main"
+jandi-r2s-collect-p350 = "jandi_real2sim.cli.collect_p350_campaign:main"
+jandi-r2s-collect-campaign = "jandi_real2sim.cli.collect_campaign:main"
+jandi-r2s-mode5-check = "jandi_real2sim.mode5.cli:check_main"
+jandi-r2s-mode5-collect = "jandi_real2sim.mode5.cli:collect_main"
+jandi-r2s-mode5-fit = "jandi_real2sim.mode5.cli:fit_main"
+jandi-r2s-mode5-compare = "jandi_real2sim.mode5.cli:compare_main"
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = true

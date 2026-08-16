@@ -1,0 +1,17 @@
+model: register_tied_equivalent_PD_deadband_Coulomb
+shared_delay_sec: 0.01
+shared_delay_ms: 10.0
+shared_backlash_total_rad: 0.00632393975434351
+shared_backlash_total_deg: 0.36233505781888176
+shared_coulomb_friction_nm: 0.0016387070810094154
+kp_eff_per_position_p_register: 0.003041940347127408
+shared_kd_eff: 0.1111029702785741
+conditions:
+  P350:
+    register_p: 350
+    kp_eff: 1.0646791214945928
+    kd_eff: 0.1111029702785741
+  P850:
+    register_p: 850
+    kp_eff: 2.5856492950582965
+    kd_eff: 0.1111029702785741

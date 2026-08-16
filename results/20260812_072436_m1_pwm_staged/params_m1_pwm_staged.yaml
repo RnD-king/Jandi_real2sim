@@ -1,0 +1,24 @@
+model: M1_pwm_output_equivalent_staged
+parameters:
+  drive_gain_nm_per_duty: 2.420510769782989
+  armature_kg_m2: 0.004051980468407159
+  coulomb_friction_nm: 0.5761552200150222
+  viscous_friction_nm_s_per_rad: 0.049943504890417156
+stages:
+  triangle:
+    drive_gain_nm_per_duty: 8.960898221567396
+    armature_kg_m2: 0.024
+    coulomb_friction_nm: 0.38413534714351966
+    viscous_friction_nm_s_per_rad: 0.05
+  multisine:
+    drive_gain_nm_per_duty: 4.841021530673283
+    armature_kg_m2: 0.0079818035992523
+    coulomb_friction_nm: 0.38413534714351966
+    viscous_friction_nm_s_per_rad: 1.0753553127129667e-07
+  joint_refinement:
+    drive_gain_nm_per_duty: 2.420510769782989
+    armature_kg_m2: 0.004051980468407159
+    coulomb_friction_nm: 0.5761552200150222
+    viscous_friction_nm_s_per_rad: 0.049943504890417156
+nominal_voltage_v: 12.0
+torque_limit_nm: 5.5
