@@ -1,0 +1,152 @@
+{
+  "valid_flag": true,
+  "campaign_id": "mode5_mx106_pilot_001",
+  "condition": "no_load",
+  "trajectory": "triangle",
+  "repeat": 3,
+  "split_role": "validation",
+  "pilot": false,
+  "config_snapshot": {
+    "sources": {
+      "campaign": {
+        "path": "/home/noh/Jandi_real2sim/configs/mode5/campaign.yaml",
+        "sha256": "1b72f87cf8bf29120f7a28e2a4d8a8f8966d7b2018228c739c4248faaf177ce1"
+      },
+      "condition.loaded": {
+        "path": "/home/noh/Jandi_real2sim/configs/mode5/bench/loaded.yaml",
+        "sha256": "3b0e646107d43bd263fbeab4e0afe58f0aafdfa37d5354a4bb9d35913dda8543"
+      },
+      "condition.no_load": {
+        "path": "/home/noh/Jandi_real2sim/configs/mode5/bench/no_load.yaml",
+        "sha256": "d1d713c7ca7ec71bf4931ae3781b351f719b48bd9e11770370ebc110c9d40506"
+      },
+      "controller": {
+        "path": "/home/noh/Jandi_real2sim/configs/mode5/controller.yaml",
+        "sha256": "82a9b546eb024abd6018b50fae5f9a29e1cfe6e7363b6d7cc895b1b2eb057ff2"
+      },
+      "hardware": {
+        "path": "/home/noh/Jandi_real2sim/configs/mode5/hardware.yaml",
+        "sha256": "36c529f9cac1fdd422323a18157a4ac98bb8a7cbfaafce930563369ff5ca344f"
+      },
+      "trajectory.sine": {
+        "path": "/home/noh/Jandi_real2sim/configs/mode5/trajectories/sine.yaml",
+        "sha256": "5497ac637e87636b5066becc9b017d46cb624349979c95b836b06e9cf1b89002"
+      },
+      "trajectory.step": {
+        "path": "/home/noh/Jandi_real2sim/configs/mode5/trajectories/step.yaml",
+        "sha256": "480c5b6f7c35fbee430aebb85ff54391e9092b756e4f14eb913c9cbebea4e5a3"
+      },
+      "trajectory.triangle": {
+        "path": "/home/noh/Jandi_real2sim/configs/mode5/trajectories/triangle.yaml",
+        "sha256": "ac114aa83ab4c67e6a10effbeee64b48a1599d9d5a88312cb262882d85ed10f8"
+      }
+    },
+    "resolved": {
+      "hardware": {
+        "port": "/dev/ttyUSB0",
+        "baudrate": 4000000,
+        "protocol_version": 2.0,
+        "motor_id": 0,
+        "joint_name": "RL6_joint",
+        "zero_tick": 2048,
+        "direction": -1,
+        "min_rad": -0.35,
+        "max_rad": 0.35,
+        "center_rad": 0.0
+      },
+      "timing": {
+        "command_rate_hz": 100,
+        "state_read_rate_hz": 99,
+        "hardware_error_read_rate_hz": 1,
+        "transition_sec": 5.0
+      },
+      "mode5_registers": {
+        "operating_mode": 5,
+        "position_p_gain": 350,
+        "position_i_gain": 0,
+        "position_d_gain": 0,
+        "feedforward_1st_gain": 0,
+        "feedforward_2nd_gain": 0,
+        "profile_velocity": 0,
+        "profile_acceleration": 0,
+        "goal_current_raw": 900,
+        "expected_current_limit_raw": 900,
+        "goal_pwm_raw": 885,
+        "expected_pwm_limit_raw": 885,
+        "bus_watchdog_raw": 5
+      },
+      "bench": {
+        "bare_horn": true,
+        "gravity_zero_offset_rad": 0.0,
+        "arm_mass_kg": 0.0,
+        "arm_com_radius_m": 0.0,
+        "arm_inertia_kg_m2": 0.0,
+        "added_load_mass_kg": 0.0,
+        "added_load_radius_m": 0.0,
+        "equivalent_mass_kg": 0.0,
+        "equivalent_com_radius_m": null,
+        "equivalent_pivot_inertia_kg_m2": 0.0
+      },
+      "trajectory": {
+        "name": "triangle",
+        "parameters": {
+          "amplitude_rad": 0.07,
+          "frequencies_hz": [
+            0.05,
+            0.1
+          ],
+          "cycles_each": 3,
+          "center_hold_sec": 1.0
+        }
+      },
+      "safety": {
+        "pilot_approved": true,
+        "pilot_amplitude_rad": 0.035,
+        "max_temperature_c": 75.0,
+        "min_input_voltage_v": 10.0,
+        "max_abs_current_a": 2.8,
+        "max_abs_pwm_percent": 98.0,
+        "max_abs_position_error_rad": 0.6,
+        "consecutive_state_samples": 3,
+        "between_runs_sec": 10.0
+      }
+    }
+  },
+  "bench": {
+    "bare_horn": true,
+    "gravity_zero_offset_rad": 0.0,
+    "arm_mass_kg": 0.0,
+    "arm_com_radius_m": 0.0,
+    "arm_inertia_kg_m2": 0.0,
+    "added_load_mass_kg": 0.0,
+    "added_load_radius_m": 0.0,
+    "equivalent_mass_kg": 0.0,
+    "equivalent_com_radius_m": null,
+    "equivalent_pivot_inertia_kg_m2": 0.0
+  },
+  "started_at": "2026-08-16T10:56:37.131788+09:00",
+  "model_number": 321,
+  "register_readback": {
+    "firmware_version": 45,
+    "operating_mode": 5,
+    "homing_offset": 0,
+    "pwm_limit_raw": 885,
+    "current_limit_raw": 900,
+    "shutdown": 52,
+    "torque_enable": 0,
+    "hardware_error": 0,
+    "position_d_gain": 0,
+    "position_i_gain": 0,
+    "position_p_gain": 350,
+    "feedforward_2nd_gain": 0,
+    "feedforward_1st_gain": 0,
+    "bus_watchdog_raw": 5,
+    "goal_pwm_raw": 885,
+    "goal_current_raw": 900,
+    "profile_acceleration": 0,
+    "profile_velocity": 0
+  },
+  "sample_count": 9302,
+  "invalid_reason": "",
+  "finished_at": "2026-08-16T10:58:15.220909+09:00"
+}
