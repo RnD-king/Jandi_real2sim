@@ -8,10 +8,10 @@ gravity_m_s2: 9.80665
 # MuJoCo canonical hinge는 항상 [0, 1, 0]. 아래 값은 물리 fixture 기록용이며
 # simulation axis parameter로 사용하지 않는다.
 physical_fixture_axis_description: null
-gravity_zero_angle_rad: null
+gravity_zero_angle_rad: 0.0
 gravity_torque_sign: null
 coordinate:
-  zero_definition: null
+  zero_definition: upright
   positive_direction: null
   current_positive_direction: null
   gravity_torque_positive_direction: null

@@ -802,14 +802,15 @@ uv run jandi-r2s-mode5-collect \
 Main identification campaign의 기본 interface는:
 
 ```text
-Goal Position command update : 100 Hz target
-State telemetry              : ~100 Hz target
+Goal target generation       : 50 Hz
+Goal Position bus write      : 100 Hz (each target is written twice)
+State telemetry              : 100 Hz target
 ```
 
 실제 rate는 로그에서 계산하며 정확히 100 Hz라고 가정하지 않는다.
 
-`measured_command_rate_hz`는 실제 `command_tx_after_ns` event series로,
-`measured_state_rate_hz`는 state RX series로 각각 계산한다. 두 interval의 mean/std/max와
+`measured_target_update_rate_hz`, `measured_bus_write_rate_hz`,
+`measured_state_rate_hz`는 각각 독립 timestamp series로 계산한다. 각 interval의 mean/std/max와
 deadline overrun count/max도 metadata에 별도로 저장한다.
 
 모든 sample에 host monotonic time을 저장한다.
@@ -1057,13 +1058,13 @@ L2 + 750 g
 
 ## 12.3 Static angle set
 
-Static angle set은 본 Mode-5 static calibration 설계로 다음 다섯 점을 고정한다.
+Static angle set은 본 Mode-5 static calibration 설계로 다음 일곱 점을 고정한다.
 
 ```yaml
-static_angles_rad: [-1.0471975512, -0.5235987756, 0.0, 0.5235987756, 1.0471975512]
+static_angles_rad: [-1.5707963268, -1.0471975512, -0.5235987756, 0.0, 0.5235987756, 1.0471975512, 1.5707963268]
 ```
 
-이는 각각 `-60, -30, 0, +30, +60 degree`이며 BAM/논문의 값을 복사한 것이 아니다.
+이는 각각 `-90, -60, -30, 0, +30, +60, +90 degree`이며 BAM/논문의 값을 복사한 것이 아니다.
 
 Angle selection은 다음 조건을 만족해야 한다.
 
@@ -1098,7 +1099,7 @@ Canonical static sweep repeat:
 6 mechanical configurations x 2 approach directions x 3 repeats이면
 **36 static sweep runs**가 된다.
 
-각 sweep은 위 다섯 angle point를 모두 포함한다.
+각 sweep은 위 일곱 angle point를 모두 포함한다. 총 잠재 plateau 수는 `36 x 7 = 252`다.
 
 ## 12.6 Settling과 averaging
 
@@ -2501,7 +2502,7 @@ Run 수는 pilot 후 trajectory config가 확정되면 결정한다.
 [ ] Goal PWM
 [ ] PWM Limit
 
-[x] static angle set = -60/-30/0/+30/+60 deg
+[x] static angle set = -90/-60/-30/0/+30/+60/+90 deg
 [ ] static settling/dwell thresholds
 
 [ ] accelerated oscillation parameters
@@ -2579,6 +2580,8 @@ Manual Test는 `MANUAL TEST — NOT PART OF CANONICAL DATASET`으로 구분한�
 저장하지 않으며, 실제 manual telemetry도 canonical 경로가 아닌 `data/temp/manual/` 아래에만
 immutable attempt로 저장한다. Manual의 center/amplitude/frequency/duration은 명시적 per-run
 override metadata/trajectory로만 사용되며 canonical static/dynamic YAML을 바꾸지 않는다.
+`Keep temporary log`를 끄면 성공한 manual run만 허용된 temporary root 안에서 정리한다. 실패/중단
+로그는 안전 진단을 위해 보존한다.
 
 ## 37.2 Immutable attempt 구조
 
@@ -2613,7 +2616,68 @@ metric은 포화 표본을 버리지 않는다.
 ## 37.4 Repeatability 명칭 계약
 
 - `model_error_repeat_variation`: 같은 조건의 repeat별 simulation RMSE 변동
-- `real_to_real_repeatability`: 실제 repeat 1/2/3을 run-local host time으로 보간 정렬한 뒤 계산한
+- `real_to_real_repeatability`: 실제 repeat 1/2/3을 run-local state midpoint time으로 보간 정렬한 뒤 계산한
   r1-r2, r1-r3, r2-r3의 position/velocity/current RMSE
 
 둘은 각각 residual summary와 `real_to_real_repeatability.json`에 분리해 저장한다.
+
+---
+
+# 38. 2026-08-27 최종 acquisition/freeze 계약
+
+이 절은 앞 절의 모호한 표현보다 우선한다.
+
+## 38.1 좌표·readback
+
+- 물리 upright가 `q=0 rad`, `encoder_zero_raw`도 그 upright encoder tick이다.
+- `gravity_zero_angle_rad=0.0`; `gravity_torque_sign`은 fixture 확인값을 명시한다.
+- 실행 전에 Model/Firmware, Operating/Drive Mode, P/I/D, FF, Profile, Goal/Limit Current,
+  Goal/Limit PWM, Watchdog, Homing Offset, Return Delay, Status Return Level을 읽고 metadata에 동결한다.
+- Goal Position readback은 target 변경 직후 한 bus cycle의 grace만 허용하고 이후 불일치 시 raw row를
+  남긴 뒤 attempt를 invalid 처리한다.
+
+## 38.2 Raw timestamp와 validity
+
+`target_seq/target_update_event`와 `bus_write_seq/bus_write_event`는 서로 다른 개념이다.
+`command_seq/command_event`는 50 Hz target update의 하위 호환 alias다. Tx timestamp는 실제
+`GroupSyncWrite.txPacket()` API 호출 직전/직후이고, state timestamp는
+`GroupSyncRead.txRxPacket()` 직전/직후 및 그 midpoint(`state_time_ns`)다. 어떤 값도 RS-485 wire
+time이나 firmware 내부 update time으로 부르지 않는다.
+
+Raw에는 위 sequence/timestamp 외에 Goal readback, Present Position/Velocity/Current/PWM,
+Trajectory, Voltage, Temperature, Realtime Tick, Moving/Moving Status, saturation/near-limit,
+`goal_readback_mismatch`, `timing_invalid`, `fit_eligible`, `validity_tag`, overrun을 저장한다.
+1 Hz Hardware Error read는 100 Hz state read에 추가되며 poll start/end/duration을 safety log에 남긴다.
+Delay response search window와 겹치면 poll을 뒤로 미룬다.
+
+severe overrun은 해당 row를 `TIMING_INVALID`로 먼저 저장한 후 즉시 중단한다. catch-up burst를 하지
+않는다. 수집 뒤 sample/index/timestamp/finite/readback/timing/tick 무결성 검사를 통과해야만
+`valid_flag=true`가 된다.
+
+## 38.3 Frozen analysis와 campaign freeze
+
+각 attempt metadata는 resolved hardware/controller/timing/safety/geometry/load/trajectory와 source
+manifest SHA256, git commit/dirty 상태를 저장한다. 과거 데이터 분석과 MuJoCo replay는 현재 YAML이
+아니라 run-local resolved snapshot을 사용한다. Fit은 critical controller/hardware/timing 계약이
+다른 run의 혼합을 차단한다.
+
+첫 valid Static/Delay/Dynamic run이 `campaign_freeze.json`을 만든다. 이후 critical YAML source manifest가
+달라지면 같은 campaign 수집과 GUI config edit를 차단하며 새 campaign ID가 필요하다. Canonical
+hardware 수집은 dirty git tree도 차단하지만 Preview와 Manual은 허용한다. README 자체의 편집은
+run-local full manifest에는 기록되지만 물리 실험 입력이 아니므로 freeze 비교 대상에서는 제외한다.
+
+## 38.4 CLI physical confirmation
+
+실제 실행에는 기존 confirmation string 외에도 선택한 fixture와 같은 `--confirm-setup`이 필요하다.
+예:
+
+```bash
+uv run jandi-r2s-mode5-static \
+  --mechanical-configuration L1_m250 --approach approach_positive --repeat 1 \
+  --confirm-setup L1_m250 --execute --confirm CALIBRATE_MX106_MODE5
+```
+
+GUI는 같은 backend 계약을 사용한다. Pilot PASS와 warmup acknowledgment는 자동 생성하지 않고 사람이
+명시하며, invalid retry는 새 immutable attempt를 만들고 multiple-valid는 accepted attempt를 명시 선택한다.
+미확정 measured mass는 빈 칸/null로 표시하며 작은 양수 placeholder로 바꾸지 않는다.
+Nominal class의 50% 미만 또는 150% 초과인 실측 질량은 오입력 가능성이 커 hardware execution gate에서 차단한다.

@@ -29,9 +29,11 @@ def resolved_cfg():
     hardware = copy.deepcopy(base.hardware)
     hardware.update(serial_device="/dev/null", baudrate=4_000_000, motor_id=1,
                     expected_model_number=321, encoder_zero_raw=2048,
+                    expected_homing_offset_raw=0,
                     direction=1, current_direction=1, pwm_direction=1)
     timing = copy.deepcopy(base.timing)
-    timing.update(delay_telemetry_target_rate_hz=500, hardware_error_poll_rate_hz=1)
+    timing.update(delay_telemetry_target_rate_hz=500, hardware_error_poll_rate_hz=1,
+                  severe_overrun_threshold_sec=.1)
     registers = copy.deepcopy(base.registers)
     registers.update(drive_mode=0, position_p_gain=350, position_d_gain=0,
                      bus_watchdog_raw=5, goal_current_raw=500,
@@ -54,6 +56,7 @@ def resolved_cfg():
     for key, mass in (("m250", .25), ("m500", .5), ("m750", .75)):
         loads[key]["measured_mass_kg"] = mass
     trajectories = copy.deepcopy(base.trajectories)
+    trajectories["delay_probe"].update(response_search_sec=.05)
     trajectories["static_calibration"].update(
         static_angles_rad=[-.4, 0, .4], approach_offset_rad=.05,
         approach_duration_sec=.25, inter_point_transfer_duration_sec=.4,
@@ -108,7 +111,7 @@ class CommandAndTrajectoryContractTest(unittest.TestCase):
     def test_static_continuity_and_approach_direction(self):
         for approach, expected_sign in (("approach_positive", 1), ("approach_negative", -1)):
             samples = build_static(self.cfg, approach)
-            speed = max(abs(b.goal_position_rad-a.goal_position_rad)*100 for a,b in zip(samples,samples[1:]))
+            speed = max(abs(b.goal_position_rad-a.goal_position_rad)*self.cfg.target_generation_rate_hz for a,b in zip(samples,samples[1:]))
             self.assertLessEqual(speed, 2.0 + 1e-12)
             phases = {s.phase for s in samples}
             self.assertTrue(any("inter_point_transfer" in phase for phase in phases))
@@ -124,13 +127,13 @@ class CommandAndTrajectoryContractTest(unittest.TestCase):
             self.assertAlmostEqual(samples[0].goal_position_rad, float(self.cfg.trajectories[name]["center_rad"]))
             self.assertAlmostEqual(samples[-1].goal_position_rad, float(self.cfg.trajectories[name]["center_rad"]))
             limit = float(self.cfg.trajectories[name]["maximum_command_speed_rad_s"])
-            speed = max(abs(b.goal_position_rad-a.goal_position_rad)*100 for a,b in zip(samples,samples[1:]))
+            speed = max(abs(b.goal_position_rad-a.goal_position_rad)*self.cfg.target_generation_rate_hz for a,b in zip(samples,samples[1:]))
             self.assertLessEqual(speed, limit + 1e-12)
             for sample in samples:
                 self.cfg.rad_to_raw(sample.goal_position_rad)
         slow = build_dynamic(self.cfg, "slowly_raise_lower")
         raise_samples = [s for s in slow if s.phase == "cycle_0_raise"]
-        speeds = [abs(b.goal_position_rad-a.goal_position_rad)*100 for a,b in zip(raise_samples, raise_samples[1:])]
+        speeds = [abs(b.goal_position_rad-a.goal_position_rad)*self.cfg.target_generation_rate_hz for a,b in zip(raise_samples, raise_samples[1:])]
         self.assertAlmostEqual(float(np.median(speeds)), .2, delta=.005)
 
     def test_delay_events_are_less_frequent_than_telemetry(self):
@@ -142,7 +145,7 @@ class CommandAndTrajectoryContractTest(unittest.TestCase):
     def test_delay_loop_writes_events_but_polls_at_high_rate(self):
         from jandi_real2sim.mode5.canonical_trajectories import Sample
 
-        samples = [Sample(i, i/100, "a" if i < 5 else "b", 0 if i < 5 else .1)
+        samples = [Sample(i, i/50, "a" if i < 5 else "b", 0 if i < 5 else .1)
                    for i in range(10)]
 
         class Clock:
@@ -159,20 +162,24 @@ class CommandAndTrajectoryContractTest(unittest.TestCase):
         class Bus:
             writes = 0
             reads = 0
-            def write_goal_rad_no_response(self, _goal): self.writes += 1
+            goal_raw = 2048
+            def write_goal_rad_no_response(self, goal):
+                self.writes += 1
+                self.goal_raw = self_cfg.rad_to_raw(goal)
             def read_hardware_error(self): return 0
             def read_state(self):
                 self.reads += 1
-                return State(2048, self.reads % 32768, 0, 0, 0, 0, 0, 2048,
+                return State(self.goal_raw, self.reads % 32768, 0, 0, 0, 0, 0, 2048,
                              0, 2048, 120, 30)
 
+        self_cfg = self.cfg
         clock, bus, writer, safety_writer = Clock(), Bus(), Writer(), Writer()
         with patch("jandi_real2sim.mode5.canonical_acquisition.time.monotonic_ns", clock.monotonic_ns), \
              patch("jandi_real2sim.mode5.canonical_acquisition.time.sleep", clock.sleep):
             stats = _run_delay_samples(bus, self.cfg, samples, writer, safety_writer)
         self.assertEqual(bus.writes, 2)
-        self.assertEqual(bus.reads, 50)
-        self.assertEqual(stats.sample_count, 50)
+        self.assertEqual(bus.reads, 100)
+        self.assertEqual(stats.sample_count, 100)
         self.assertEqual(len(stats.command_tx_after_ns), 2)
 
 

@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Any
 
 from .canonical_config import CanonicalCampaign
 
 
 ADDR = {
-    "firmware_version": (6, 1, False), "drive_mode": (10, 1, False),
+    "firmware_version": (6, 1, False), "return_delay_time_raw": (9, 1, False),
+    "drive_mode": (10, 1, False),
     "operating_mode": (11, 1, False), "pwm_limit_raw": (36, 2, False),
+    "homing_offset_raw": (20, 4, True),
     "current_limit_raw": (38, 2, False), "torque_enable": (64, 1, False),
+    "status_return_level_raw": (68, 1, False),
     "hardware_error": (70, 1, False), "position_d_gain": (80, 2, False),
     "position_i_gain": (82, 2, False), "position_p_gain": (84, 2, False),
     "feedforward_2nd_gain": (88, 2, False), "feedforward_1st_gain": (90, 2, False),
@@ -43,6 +47,20 @@ class State:
     position_trajectory_raw: int
     input_voltage_raw: int
     temperature_c: int
+
+
+@dataclass(frozen=True)
+class GoalWrite:
+    raw: int
+    tx_before_ns: int
+    tx_after_ns: int
+
+
+@dataclass(frozen=True)
+class TimedState:
+    state: State
+    read_before_ns: int
+    read_after_ns: int
 
 
 class CanonicalMode5Bus:
@@ -145,6 +163,7 @@ class CanonicalMode5Bus:
             "bus_watchdog_raw": 0,
             "current_limit_raw": int(self.cfg.registers["expected_current_limit_raw"]),
             "pwm_limit_raw": int(self.cfg.registers["expected_pwm_limit_raw"]),
+            "homing_offset_raw": int(self.cfg.hardware["expected_homing_offset_raw"]),
         }
         actual = {name: self.read(name) for name in expected}
         mismatches = {name: {"expected": expected[name], "actual": actual[name]} for name in expected if expected[name] != actual[name]}
@@ -163,10 +182,12 @@ class CanonicalMode5Bus:
 
     def read_configuration_snapshot(self) -> dict[str, int]:
         names = (
-            "firmware_version", "drive_mode", "operating_mode", "pwm_limit_raw",
+            "firmware_version", "return_delay_time_raw", "homing_offset_raw",
+            "drive_mode", "operating_mode", "pwm_limit_raw",
             "current_limit_raw", "position_d_gain", "position_i_gain",
             "position_p_gain", "feedforward_2nd_gain", "feedforward_1st_gain",
             "bus_watchdog_raw", "goal_pwm_raw", "goal_current_raw", "profile_acceleration", "profile_velocity",
+            "status_return_level_raw", "hardware_error",
         )
         return {name: self.read(name) for name in names}
 
@@ -176,7 +197,7 @@ class CanonicalMode5Bus:
         self.write("goal_position_raw", raw)
         return raw
 
-    def write_goal_rad_no_response(self, angle: float) -> int:
+    def write_goal_rad_no_response(self, angle: float) -> GoalWrite:
         """Transmit Goal Position with GroupSyncWrite/syncWriteTxOnly.
 
         The return time is host packet-transmission completion, not a returned
@@ -191,14 +212,22 @@ class CanonicalMode5Bus:
         self._goal_writer.clearParam()
         if not self._goal_writer.addParam(int(self.cfg.hardware["motor_id"]), data):
             raise RuntimeError("Goal Position GroupSyncWrite addParam 실패")
+        tx_before_ns = time.monotonic_ns()
         result = self._goal_writer.txPacket()
+        tx_after_ns = time.monotonic_ns()
         if result != self._sdk.COMM_SUCCESS:
             raise RuntimeError(f"Goal Position syncWriteTxOnly 실패: {self._packet.getTxRxResult(result)}")
-        return raw
+        return GoalWrite(raw, tx_before_ns, tx_after_ns)
 
     def read_state(self) -> State:
+        return self.read_state_timed().state
+
+    def read_state_timed(self) -> TimedState:
+        """Bracket the host-side GroupSyncRead API call; not firmware sample time."""
         self._require()
+        read_before_ns = time.monotonic_ns()
         result = self._reader.txRxPacket()
+        read_after_ns = time.monotonic_ns()
         if result != self._sdk.COMM_SUCCESS:
             raise RuntimeError(self._packet.getTxRxResult(result))
         motor_id = int(self.cfg.hardware["motor_id"])
@@ -209,7 +238,7 @@ class CanonicalMode5Bus:
             value = int(self._reader.getData(motor_id, address, length))
             return _signed(value, length * 8) if signed else value
 
-        return State(
+        state = State(
             goal_position_raw=get(116, 4, True), realtime_tick_raw=get(120, 2),
             moving=get(122, 1), moving_status=get(123, 1),
             present_pwm_raw=get(124, 2, True), present_current_raw=get(126, 2, True),
@@ -217,6 +246,7 @@ class CanonicalMode5Bus:
             velocity_trajectory_raw=get(136, 4, True), position_trajectory_raw=get(140, 4, True),
             input_voltage_raw=get(144, 2), temperature_c=get(146, 1),
         )
+        return TimedState(state, read_before_ns, read_after_ns)
 
     def read_hardware_error(self) -> int:
         return self.read("hardware_error")

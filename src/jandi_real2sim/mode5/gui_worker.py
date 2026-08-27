@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import math
 import queue
+import shutil
 import time
+from pathlib import Path
 from multiprocessing.queues import Queue
 from typing import Any
 
 from .canonical_acquisition import collect_run
 from .canonical_bus import CanonicalMode5Bus
 from .canonical_config import load_canonical_campaign
-from .canonical_trajectories import Sample, build_delay, build_dynamic, build_static
+from .canonical_trajectories import Sample, build_delay, build_dynamic, build_pilot, build_static
 from .gui_backend import completed_run_summary, progress_rows, require_physical_confirmation
 from .spec import CONFIRMATIONS
 
@@ -53,6 +55,8 @@ def _samples(cfg, mode: str, command: dict[str, Any]):
         return build_delay(cfg)
     if mode == "collect":
         return build_dynamic(cfg, str(command["trajectory"]))
+    if mode == "pilot":
+        return build_pilot(cfg)
     if mode == "manual":
         rate = cfg.command_rate_hz
         duration = float(command["duration_sec"])
@@ -118,7 +122,17 @@ def _real_run(outbox: Queue, control: Queue, command: dict[str, Any]) -> None:
             summary["delay_calibration"] = estimate_delay(cfg, _load_run(target))
         except BaseException as exc:
             summary["delay_diagnostic_error"] = repr(exc)
-    _emit(outbox, "completed", path=str(target), mock=False, saved=True, summary=summary)
+    saved = True
+    emitted_path = str(target)
+    if mode == "manual" and not bool(command.get("keep_temporary_log", True)):
+        manual_root = (cfg.project_root / "data/temp/manual").resolve()
+        resolved_target = target.resolve()
+        if not resolved_target.is_relative_to(manual_root):
+            raise RuntimeError(f"manual temporary cleanup path가 허용 root 밖입니다: {resolved_target}")
+        shutil.rmtree(resolved_target)
+        saved = False
+        emitted_path = ""
+    _emit(outbox, "completed", path=emitted_path, mock=False, saved=saved, summary=summary)
 
 
 def worker_main(inbox: Queue, outbox: Queue, *, mock: bool = False) -> None:
@@ -158,6 +172,16 @@ def worker_main(inbox: Queue, outbox: Queue, *, mock: bool = False) -> None:
                     _mock_run(outbox, inbox, command)
                 else:
                     _real_run(outbox, inbox, command)
+            elif action in ("fit", "validate", "report"):
+                cfg = load_canonical_campaign(command["config"])
+                from .canonical_analysis import fit, report, validate
+                if action == "fit":
+                    path = fit(cfg, cfg.project_root / "configs/mode5/fit.yaml")
+                elif action == "validate":
+                    path = validate(cfg, Path(command["result_dir"]))
+                else:
+                    path = report(cfg, Path(command["result_dir"]))
+                _emit(outbox, "analysis_completed", action=action, path=str(path))
             else:
                 raise ValueError(f"unknown worker action: {action}")
         except BaseException as exc:

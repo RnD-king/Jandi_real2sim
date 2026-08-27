@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -87,8 +88,21 @@ class CanonicalCampaign:
         return (self.project_root / str(self.campaign["results_root"])).resolve()
 
     @property
+    def target_generation_rate_hz(self) -> float:
+        return float(self.timing["target_generation_rate_hz"])
+
+    @property
+    def bus_write_rate_hz(self) -> float:
+        return float(self.timing["bus_write_rate_hz"])
+
+    @property
+    def state_read_rate_hz(self) -> float:
+        return float(self.timing["state_read_rate_hz"])
+
+    @property
     def command_rate_hz(self) -> float:
-        return float(self.timing["command_rate_hz"])
+        """Compatibility alias for trajectory generation; not the bus rate."""
+        return self.target_generation_rate_hz
 
     def configuration(self, name: str) -> MechanicalConfiguration:
         for item in self.configurations:
@@ -133,12 +147,13 @@ class CanonicalCampaign:
         result = _missing(self.campaign, ("id",), "campaign")
         result += _missing(
             self.hardware,
-            ("serial_device", "baudrate", "motor_id", "expected_model_number", "encoder_zero_raw", "direction", "current_direction", "pwm_direction"),
+            ("serial_device", "baudrate", "motor_id", "expected_model_number", "encoder_zero_raw", "expected_homing_offset_raw", "direction", "current_direction", "pwm_direction"),
             "hardware",
         )
         result += _missing(
             self.timing,
-            ("telemetry_target_rate_hz", "hardware_error_poll_rate_hz"),
+            ("target_generation_rate_hz", "bus_write_rate_hz", "state_read_rate_hz",
+             "hardware_error_poll_rate_hz", "severe_overrun_threshold_sec"),
             "timing",
         )
         result += _missing(
@@ -169,8 +184,14 @@ class CanonicalCampaign:
             if self.geometry.get("arm_lengths_m", {}).get(name) is None:
                 result.append(f"bench.geometry.arm_lengths_m.{name}")
         for name in ("m250", "m500", "m750"):
-            if self.loads.get(name, {}).get("measured_mass_kg") is None:
+            load = self.loads.get(name, {})
+            measured = load.get("measured_mass_kg")
+            if measured is None:
                 result.append(f"bench.loads.{name}.measured_mass_kg")
+            else:
+                nominal = float(load["nominal_mass_kg"])
+                if not 0.5 * nominal <= float(measured) <= 1.5 * nominal:
+                    result.append(f"bench.loads.{name}.measured_mass_kg(plausibility)")
         for name, value in self.geometry.get("coordinate", {}).items():
             if value is None:
                 result.append(f"bench.geometry.coordinate.{name}")
@@ -183,10 +204,24 @@ class CanonicalCampaign:
         result = self.common_execution_missing()
         if experiment == "pilot":
             result += _missing(self.pilot, ("mechanical_configuration", "center_rad", "amplitude_rad", "hold_sec"), "pilot")
+            selected = self.pilot.get("mechanical_configuration")
+            if selected in {item.id for item in self.configurations}:
+                load = self.configuration(str(selected)).load
+                measured = self.loads[load].get("measured_mass_kg")
+                if measured is None:
+                    result.append(f"bench.loads.{load}.measured_mass_kg")
+                else:
+                    nominal = float(self.loads[load]["nominal_mass_kg"])
+                    if not 0.5 * nominal <= float(measured) <= 1.5 * nominal:
+                        result.append(f"bench.loads.{load}.measured_mass_kg(plausibility)")
             return sorted(set(result))
         result += self.bench_missing()
         if not self.approval.get("pilot_passed", False):
             result.append("approval.pilot_passed")
+        if self.approval.get("pilot_run_reference") is None:
+            result.append("approval.pilot_run_reference")
+        if self.approval.get("pilot_approved_at") is None:
+            result.append("approval.pilot_approved_at")
         if self.approval.get("warmup_acknowledged_at") is None:
             result.append("approval.warmup_acknowledged_at")
         if experiment == "static":
@@ -261,16 +296,30 @@ def _validate_structure(cfg: CanonicalCampaign, raw: dict[str, Any], safety_raw:
     for name in ("position_i_gain", "feedforward_1st_gain", "feedforward_2nd_gain", "profile_velocity", "profile_acceleration"):
         if cfg.registers.get(name) != 0:
             raise ValueError(f"{name}은 canonical controller에서 0이어야 합니다.")
-    if float(cfg.timing.get("command_rate_hz", 0)) != 100.0:
-        raise ValueError("main Goal Position command target는 100 Hz입니다.")
+    expected_rates = {
+        "target_generation_rate_hz": 50.0,
+        "bus_write_rate_hz": 100.0,
+        "state_read_rate_hz": 100.0,
+    }
+    for name, expected in expected_rates.items():
+        if float(cfg.timing.get(name, 0)) != expected:
+            raise ValueError(f"canonical timing.{name}는 {expected:g} Hz여야 합니다.")
     if cfg.campaign_id is not None and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", cfg.campaign_id) is None:
         raise ValueError("campaign.id는 경로 구분자 없는 영문/숫자/._- 이름이어야 합니다.")
     if cfg.geometry.get("arm_lengths_m") != {"L1": 0.10, "L2": 0.15}:
         raise ValueError("canonical arm lengths는 정확히 L1=0.10 m, L2=0.15 m여야 합니다.")
-    if cfg.trajectories["static_calibration"].get("static_angles_rad") != [
-        -1.0471975512, -0.5235987756, 0.0, 0.5235987756, 1.0471975512,
-    ]:
-        raise ValueError("canonical static angle set은 정확히 -60,-30,0,+30,+60 deg여야 합니다.")
+    expected_static = [-math.pi / 2, -math.pi / 3, -math.pi / 6, 0.0,
+                       math.pi / 6, math.pi / 3, math.pi / 2]
+    actual_static = cfg.trajectories["static_calibration"].get("static_angles_rad")
+    if not isinstance(actual_static, list) or len(actual_static) != 7 or any(
+        not math.isclose(float(a), b, rel_tol=0.0, abs_tol=1e-12)
+        for a, b in zip(actual_static, expected_static)
+    ):
+        raise ValueError("canonical static angle set은 정확히 -90,-60,-30,0,+30,+60,+90 deg여야 합니다.")
+    if float(cfg.geometry.get("gravity_zero_angle_rad", math.nan)) != 0.0:
+        raise ValueError("upright q=0 canonical에서 gravity_zero_angle_rad는 0.0이어야 합니다.")
+    if cfg.geometry.get("coordinate", {}).get("zero_definition") != "upright":
+        raise ValueError("canonical q=0 coordinate는 physical upright여야 합니다.")
     if cfg.holdout_configuration is not None and cfg.holdout_configuration not in ids:
         raise ValueError("holdout_configuration이 six mechanical configurations에 없습니다.")
     for name in ("direction", "current_direction", "pwm_direction"):
@@ -283,23 +332,29 @@ def _validate_structure(cfg: CanonicalCampaign, raw: dict[str, Any], safety_raw:
     inertia_reference = cfg.geometry.get("arm_inertia_reference")
     if inertia_reference is not None and inertia_reference not in ("about_com", "about_pivot"):
         raise ValueError("arm_inertia_reference는 about_com 또는 about_pivot이어야 합니다.")
-    if cfg.execution_order is not None and cfg.execution_order not in ("grouped", "randomized"):
-        raise ValueError("execution_order는 grouped 또는 randomized여야 합니다.")
+    if cfg.execution_order is not None and cfg.execution_order not in ("grouped", "randomized", "blocked_randomized"):
+        raise ValueError("execution_order는 grouped, randomized 또는 blocked_randomized여야 합니다.")
     for selected in (cfg.pilot.get("mechanical_configuration"), cfg.trajectories["delay_probe"].get("mechanical_configuration")):
         if selected is not None and selected not in ids:
             raise ValueError(f"mechanical configuration이 canonical six에 없습니다: {selected}")
     hardware_ranges = {
         "baudrate": (1, None), "motor_id": (0, 252), "expected_model_number": (1, None),
-        "encoder_zero_raw": (0, 4095),
+        "encoder_zero_raw": (0, 4095), "expected_homing_offset_raw": (-1044479, 1044479),
     }
     for name, (minimum, maximum) in hardware_ranges.items():
         value = cfg.hardware.get(name)
         if value is not None and (float(value) < minimum or (maximum is not None and float(value) > maximum)):
             raise ValueError(f"hardware.{name} 범위가 유효하지 않습니다: {value}")
-    for name in ("command_rate_hz", "telemetry_target_rate_hz", "delay_telemetry_target_rate_hz", "hardware_error_poll_rate_hz"):
+    for name in ("target_generation_rate_hz", "bus_write_rate_hz", "state_read_rate_hz",
+                 "delay_telemetry_target_rate_hz", "hardware_error_poll_rate_hz",
+                 "severe_overrun_threshold_sec"):
         value = cfg.timing.get(name)
         if value is not None and float(value) <= 0:
             raise ValueError(f"timing.{name}은 양수여야 합니다.")
+    for name in ("current_near_limit_fraction", "pwm_near_limit_fraction"):
+        value = cfg.timing.get(name)
+        if value is not None and not 0.0 < float(value) <= 1.0:
+            raise ValueError(f"timing.{name}은 (0,1]이어야 합니다.")
     for name in ("position_p_gain", "position_i_gain", "position_d_gain", "feedforward_1st_gain", "feedforward_2nd_gain"):
         value = cfg.registers.get(name)
         if value is not None and not 0 <= int(value) <= 16383:

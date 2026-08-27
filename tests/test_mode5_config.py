@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import unittest
 from pathlib import Path
 
@@ -32,8 +33,10 @@ class CanonicalMode5ConfigTest(unittest.TestCase):
         self.assertEqual(self.cfg.geometry["arm_lengths_m"], {"L1": 0.10, "L2": 0.15})
         self.assertEqual(
             self.cfg.trajectories["static_calibration"]["static_angles_rad"],
-            [-1.0471975512, -0.5235987756, 0.0, 0.5235987756, 1.0471975512],
+            [-math.pi/2, -math.pi/3, -math.pi/6, 0.0, math.pi/6, math.pi/3, math.pi/2],
         )
+        self.assertEqual(self.cfg.geometry["coordinate"]["zero_definition"], "upright")
+        self.assertEqual(self.cfg.geometry["gravity_zero_angle_rad"], 0.0)
 
     def test_exact_dynamic_matrix_and_repeat_roles(self) -> None:
         specs = dynamic_run_specs(self.cfg)

@@ -43,8 +43,17 @@ def static_run_specs(cfg: CanonicalCampaign) -> tuple[RunSpec, ...]:
     ]
     if cfg.execution_order == "randomized":
         random.Random(int(cfg.randomization_seed)).shuffle(specs)
+    elif cfg.execution_order == "blocked_randomized":
+        rng = random.Random(int(cfg.randomization_seed))
+        blocks = []
+        for item in cfg.configurations:
+            block = [spec for spec in specs if spec.mechanical_configuration == item.id]
+            rng.shuffle(block)
+            blocks.append(block)
+        rng.shuffle(blocks)
+        specs = [spec for block in blocks for spec in block]
     elif cfg.execution_order not in (None, "grouped"):
-        raise ValueError("execution_order는 grouped 또는 randomized여야 합니다.")
+        raise ValueError("execution_order는 grouped, randomized 또는 blocked_randomized여야 합니다.")
     return tuple(specs)
 
 
@@ -57,8 +66,17 @@ def dynamic_run_specs(cfg: CanonicalCampaign) -> tuple[RunSpec, ...]:
     ]
     if cfg.execution_order == "randomized":
         random.Random(int(cfg.randomization_seed)).shuffle(specs)
+    elif cfg.execution_order == "blocked_randomized":
+        rng = random.Random(int(cfg.randomization_seed))
+        blocks = []
+        for item in cfg.configurations:
+            block = [spec for spec in specs if spec.mechanical_configuration == item.id]
+            rng.shuffle(block)
+            blocks.append(block)
+        rng.shuffle(blocks)
+        specs = [spec for block in blocks for spec in block]
     elif cfg.execution_order not in (None, "grouped"):
-        raise ValueError("execution_order는 grouped 또는 randomized여야 합니다.")
+        raise ValueError("execution_order는 grouped, randomized 또는 blocked_randomized여야 합니다.")
     return tuple(specs)
 
 

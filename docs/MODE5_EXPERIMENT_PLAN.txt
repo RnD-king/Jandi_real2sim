@@ -36,6 +36,7 @@ check는 모터를 움직이지 않는다. LOCKED 항목을 실제 측정/설정
 --------
   uv run jandi-r2s-mode5-pilot
   uv run jandi-r2s-mode5-pilot --execute --confirm PILOT_MX106_MODE5
+  # 실제 실행에는 pilot.mechanical_configuration과 같은 --confirm-setup도 추가한다.
 
 가장 안전한 configuration에서 부호, fixture, current/PWM, 통신, 진동, 온도를 확인한다.
 사람이 승인한 뒤에만 safety.yaml의 pilot_passed를 true로 변경한다.
@@ -44,10 +45,12 @@ check는 모터를 움직이지 않는다. LOCKED 항목을 실제 측정/설정
 ---------------------
 6 configurations x 2 approach directions x 3 repeats = 정확히 36 sweep이다.
 각 sweep은 smooth inter-point transfer, approach, fixed settling hold, averaging 순서로 측정한다.
-각 sweep의 고정 angle은 -60/-30/0/+30/+60 deg이다.
+각 sweep의 고정 angle은 -90/-60/-30/0/+30/+60/+90 deg이다.
+따라서 36 sweep에서 총 252개의 잠재 static plateau를 얻는다.
 
   uv run jandi-r2s-mode5-static --mechanical-configuration L1_m250 \
     --approach approach_positive --repeat 1 \
+    --confirm-setup L1_m250 \
     --execute --confirm CALIBRATE_MX106_MODE5
 
 한 점의 torque/current 비율을 final Ktau로 쓰지 않는다. 모든 질량/길이/각/branch를
@@ -55,7 +58,8 @@ robust regression하여 Ktau_eff와 aP prior를 구하고 whole-sweep run bootst
 
 6. Delay calibration
 --------------------
-  uv run jandi-r2s-mode5-delay --execute --confirm CALIBRATE_DELAY_MX106_MODE5
+  uv run jandi-r2s-mode5-delay --confirm-setup <configured-delay-mechanical> \
+    --execute --confirm CALIBRATE_DELAY_MX106_MODE5
 
 Goal Position GroupSyncWrite Tx-only 완료 host timestamp부터 Present Current onset까지 effective
 delay를 측정한다. command event에서만 write하고 별도 고속 state polling을 허용하며, 실제 달성
@@ -70,6 +74,7 @@ repeat 1/2/3 모두 repeatability용이며 데이터 확인 전에 dynamic traje
 
   uv run jandi-r2s-mode5-collect --mechanical-configuration L1_m250 \
     --trajectory accelerated_oscillation --repeat 1 \
+    --confirm-setup L1_m250 \
     --execute --confirm COLLECT_MX106_MODE5
 
 8. 식별
@@ -101,8 +106,9 @@ validation 통과 전 whole-Jandi locomotion 설정을 자동 변경하지 않�
 ---------------
 - raw는 overwrite하지 않는다. logical run 아래 attempt_NNN으로 invalid/incomplete retry도 보존한다.
   valid attempt가 둘 이상이면 selected_attempt.txt 또는 select-attempt CLI로 명시한다.
-- Main은 Goal Position 100 Hz target과 연속 state block read를 사용한다. command/state rate는
-  각각의 timestamp series로 따로 계산하고 interval/overrun 통계를 저장한다.
+- Main은 50 Hz target을 생성하고 같은 target을 두 번 전송하여 100 Hz bus write를 유지하며,
+  state block도 100 Hz로 읽는다. target/write/state rate는 각각의 timestamp series로 따로
+  계산하고 interval/overrun 통계를 저장한다.
 - Realtime Tick은 modulus 32768로 unwrap한다.
 - Watchdog는 Torque ON 후 활성화/read-back하며 null이면 실제 실행을 잠근다.
 - Hardware Error polling은 별도이며 state sample을 대체하지 않는다.

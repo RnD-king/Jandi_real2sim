@@ -105,7 +105,7 @@ class GuiBackendContractTest(unittest.TestCase):
 
     def test_fixed_l1_l2_and_static_set(self):
         self.assertEqual(self.cfg.geometry["arm_lengths_m"], {"L1": .10, "L2": .15})
-        self.assertEqual(len(self.cfg.trajectories["static_calibration"]["static_angles_rad"]), 5)
+        self.assertEqual(len(self.cfg.trajectories["static_calibration"]["static_angles_rad"]), 7)
 
     def test_preview_needs_no_hardware_configuration_or_port(self):
         cfg = replace(self.cfg, trajectories=copy.deepcopy(self.cfg.trajectories),

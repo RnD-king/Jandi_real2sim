@@ -1,6 +1,11 @@
 schema_version: 3
 loads:
-  m250: {nominal_mass_kg: 0.250, measured_mass_kg: null}
-  m500: {nominal_mass_kg: 0.500, measured_mass_kg: null}
-  m750: {nominal_mass_kg: 0.750, measured_mass_kg: null}
-
+  m250:
+    nominal_mass_kg: 0.25
+    measured_mass_kg: null
+  m500:
+    nominal_mass_kg: 0.5
+    measured_mass_kg: 1.0e-06
+  m750:
+    nominal_mass_kg: 0.75
+    measured_mass_kg: null

@@ -8,12 +8,20 @@ hardware:
   motor_id: null
   expected_model_number: null
   encoder_zero_raw: null
+  # q=0 physical upright에서 읽은 Present Position raw와 별개이다.
+  # 실제 Homing Offset(addr 20)을 변경하지 않고 readback 일치만 검증한다.
+  expected_homing_offset_raw: null
   direction: null
   current_direction: null
   pwm_direction: null
 
 timing:
-  command_rate_hz: 100
-  telemetry_target_rate_hz: 100
+  target_generation_rate_hz: 50
+  bus_write_rate_hz: 100
+  state_read_rate_hz: 100
   delay_telemetry_target_rate_hz: null
-  hardware_error_poll_rate_hz: null
+  hardware_error_poll_rate_hz: 1
+  # Pilot timing 분포를 본 뒤 사용자가 확정한다. null이면 canonical HW run 차단.
+  severe_overrun_threshold_sec: null
+  current_near_limit_fraction: null
+  pwm_near_limit_fraction: null

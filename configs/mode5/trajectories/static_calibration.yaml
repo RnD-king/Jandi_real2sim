@@ -1,8 +1,8 @@
 schema_version: 3
 trajectory: static_calibration
 parameters:
-  # Jandi Mode-5 static calibration design: exactly -60, -30, 0, +30, +60 deg.
-  static_angles_rad: [-1.0471975512, -0.5235987756, 0.0, 0.5235987756, 1.0471975512]
+  # Jandi Mode-5 static calibration design: exactly -90, -60, -30, 0, +30, +60, +90 deg.
+  static_angles_rad: [-1.5707963267948966, -1.0471975511965976, -0.5235987755982988, 0.0, 0.5235987755982988, 1.0471975511965976, 1.5707963267948966]
   approach_offset_rad: null
   approach_duration_sec: null
   inter_point_transfer_duration_sec: null

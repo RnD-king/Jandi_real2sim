@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from datetime import datetime
 from pathlib import Path
 
 from .canonical_acquisition import collect_run, run_directory
@@ -28,6 +29,7 @@ def _execution(parser: argparse.ArgumentParser, kind: str) -> None:
     parser.add_argument("--execute", action="store_true", help="실제 모터에 명령을 전송합니다. 기본값은 dry-run입니다.")
     parser.add_argument("--confirm", default="", help=f"실행 확인 문자열: {CONFIRMATIONS[kind]}")
     parser.add_argument("--resume", action="store_true", help="이미 완료된 valid run은 그대로 두고 건너뜁니다.")
+    parser.add_argument("--confirm-setup", default="", help="실제 설치한 mechanical configuration ID")
     if kind in ("static", "collect"):
         parser.add_argument("--override-order", action="store_true", help="planned NEXT RUN 순서를 명시적으로 우회합니다.")
         parser.add_argument("--override-reason", default="", help="순서 우회 이유. --override-order와 함께 필수입니다.")
@@ -86,7 +88,16 @@ def _execute_one(cfg: CanonicalCampaign, args: argparse.Namespace, kind: str, re
         print(f"SKIP valid logical run: {logical}")
         return
     override_reason = _enforce_order(cfg, args, kind, relative) if kind in ("static", "collect") else None
-    print(collect_run(cfg, kind, relative, mechanical, trajectory, repeat, samples, override_reason))
+    physical = {
+        "mechanical_configuration": args.confirm_setup,
+        "arm_length_m": cfg.arm_length_m(mechanical),
+        "measured_mass_kg": cfg.load_mass_kg(mechanical),
+        "confirmed_at": datetime.now().astimezone().isoformat(),
+    }
+    if args.confirm_setup != mechanical:
+        raise SystemExit(f"--confirm-setup {mechanical} 로 실제 설치 조건을 명시해야 합니다.")
+    print(collect_run(cfg, kind, relative, mechanical, trajectory, repeat, samples, override_reason,
+                      physical_setup_confirmation=physical))
 
 
 def check_main() -> None:
@@ -102,7 +113,7 @@ def check_main() -> None:
         missing = cfg.execution_missing(kind)
         print(f"{kind:7s}: {'READY' if not missing else f'LOCKED ({len(missing)} unresolved)'}")
     _print_missing(cfg, "collect")
-    if cfg.campaign_id is not None and cfg.execution_order in ("grouped", "randomized"):
+    if cfg.campaign_id is not None and cfg.execution_order in ("grouped", "randomized", "blocked_randomized"):
         for kind in ("static", "collect"):
             planned = _next_spec(cfg, kind)
             print(f"NEXT {kind.upper()}: {planned.relative_directory if planned else '<COMPLETE>'}")

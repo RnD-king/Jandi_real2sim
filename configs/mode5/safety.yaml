@@ -23,6 +23,8 @@ safety:
 
 approval:
   pilot_passed: false
+  pilot_run_reference: null
+  pilot_approved_at: null
   # 사람이 warmup_procedure를 수행한 뒤 ISO-8601 시각을 기록한다.
   warmup_acknowledged_at: null
 

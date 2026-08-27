@@ -36,15 +36,25 @@ def zoh_command(query_time_sec: np.ndarray, command_time_sec: np.ndarray,
     return goals[indices]
 
 
-def _mass_properties(cfg: CanonicalCampaign, mechanical: str) -> tuple[float, float, float]:
-    arm_mass = float(cfg.geometry["arm_mass_kg"])
-    arm_com = float(cfg.geometry["arm_com_radius_m"])
-    arm_inertia = float(cfg.geometry["arm_inertia_kg_m2"])
-    load_mass = cfg.load_mass_kg(mechanical)
-    load_radius = cfg.arm_length_m(mechanical)
+def _resolved(cfg: CanonicalCampaign, mechanical: str, resolved: dict | None) -> tuple[dict, dict, dict, object]:
+    if resolved is None:
+        item = cfg.configuration(mechanical)
+        return cfg.geometry, cfg.loads, cfg.registers, item
+    geometry, loads, registers = resolved["geometry"], resolved["loads"], resolved["controller"]
+    item = cfg.configuration(mechanical)
+    return geometry, loads, registers, item
+
+
+def _mass_properties(cfg: CanonicalCampaign, mechanical: str, resolved: dict | None = None) -> tuple[float, float, float]:
+    geometry, loads, _registers, item = _resolved(cfg, mechanical, resolved)
+    arm_mass = float(geometry["arm_mass_kg"])
+    arm_com = float(geometry["arm_com_radius_m"])
+    arm_inertia = float(geometry["arm_inertia_kg_m2"])
+    load_mass = float(loads[item.load]["measured_mass_kg"])
+    load_radius = float(geometry["arm_lengths_m"][item.arm_length])
     total_mass = arm_mass + load_mass
     com_radius = (arm_mass * arm_com + load_mass * load_radius) / total_mass
-    if cfg.geometry["arm_inertia_reference"] == "about_com":
+    if geometry["arm_inertia_reference"] == "about_com":
         pivot_inertia = arm_inertia + arm_mass * arm_com**2 + load_mass * load_radius**2
     else:
         pivot_inertia = arm_inertia + load_mass * load_radius**2
@@ -57,16 +67,18 @@ def _mass_properties(cfg: CanonicalCampaign, mechanical: str) -> tuple[float, fl
     return total_mass, com_radius, com_inertia
 
 
-def build_model(cfg: CanonicalCampaign, mechanical: str, params: dict[str, float], dt: float) -> mujoco.MjModel:
+def build_model(cfg: CanonicalCampaign, mechanical: str, params: dict[str, float], dt: float,
+                resolved: dict | None = None) -> mujoco.MjModel:
     if dt <= 0:
         raise ValueError("MuJoCo physics timestep은 양수여야 합니다.")
     for name in ("armature_kg_m2", "coulomb_friction_Nm", "viscous_friction_Nm_s_per_rad"):
         if float(params[name]) < 0:
             raise ValueError(f"{name}은 음수일 수 없습니다.")
-    mass, radius, inertia_com = _mass_properties(cfg, mechanical)
-    gravity = float(cfg.geometry["gravity_m_s2"])
-    offset = float(cfg.geometry["gravity_zero_angle_rad"])
-    gravity_sign = float(cfg.geometry["gravity_torque_sign"])
+    geometry, _loads, _registers, _item = _resolved(cfg, mechanical, resolved)
+    mass, radius, inertia_com = _mass_properties(cfg, mechanical, resolved)
+    gravity = float(geometry["gravity_m_s2"])
+    offset = float(geometry["gravity_zero_angle_rad"])
+    gravity_sign = float(geometry["gravity_torque_sign"])
     x = -gravity_sign * radius * math.sin(offset)
     z = -gravity_sign * radius * math.cos(offset)
     inertia = max(inertia_com, 1e-12)
@@ -99,8 +111,9 @@ def replay(
     qd0: float,
     params: dict[str, float],
     dt: float,
+    resolved: dict | None = None,
 ) -> Replay:
-    model = build_model(cfg, mechanical, params, dt)
+    model = build_model(cfg, mechanical, params, dt, resolved)
     data = mujoco.MjData(model)
     data.qpos[0], data.qvel[0] = q0, qd0
     mujoco.mj_forward(model, data)
@@ -110,7 +123,8 @@ def replay(
     k_tau = float(params["Ktau_eff_Nm_per_A"])
     if delay < 0 or a_p <= 0 or a_d < 0 or k_tau <= 0:
         raise ValueError("delay/aP/aD/Ktau의 물리 부호가 유효하지 않습니다.")
-    raw_cap = min(abs(int(cfg.registers["goal_current_raw"])), int(cfg.registers["expected_current_limit_raw"]))
+    _geometry, _loads, registers, _item = _resolved(cfg, mechanical, resolved)
+    raw_cap = min(abs(int(registers["goal_current_raw"])), int(registers["expected_current_limit_raw"]))
     current_cap = raw_cap * CURRENT_A_PER_RAW
     sim_t: list[float] = []
     sim_q: list[float] = []
