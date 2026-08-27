@@ -1,0 +1,13 @@
+schema_version: 3
+trajectory: static_calibration
+parameters:
+  static_angles_rad: null
+  approach_offset_rad: null
+  approach_duration_sec: null
+  settling_timeout_sec: null
+  minimum_settling_sec: null
+  averaging_window_sec: null
+  maximum_settled_abs_velocity_rad_s: null
+  maximum_settled_position_std_rad: null
+  maximum_settled_current_std_A: null
+

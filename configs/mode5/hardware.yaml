@@ -1,20 +1,19 @@
-schema_version: 1
+schema_version: 3
 
-# 기본 예시는 Jandi RL6(ID 0)이다. 시험 모터를 바꾸면 함께 수정한다.
+# README §6.1. null은 의도적인 실기체 실행 잠금이다.
 hardware:
-  port: /dev/ttyUSB0
-  baudrate: 4000000
+  serial_device: null
   protocol_version: 2.0
-  motor_id: 99
-  joint_name: TEST
-  zero_tick: 2048
-  direction: -1
-  software_min_rad: -0.35
-  software_max_rad: 0.35
-  center_rad: 0.0
+  baudrate: null
+  motor_id: null
+  expected_model_number: null
+  encoder_zero_raw: null
+  direction: null
+  current_direction: null
+  pwm_direction: null
 
 timing:
   command_rate_hz: 100
-  state_read_rate_hz: 99
-  hardware_error_read_rate_hz: 1
-  transition_sec: 5.0
+  telemetry_target_rate_hz: 100
+  delay_telemetry_target_rate_hz: null
+  hardware_error_poll_rate_hz: null

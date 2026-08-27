@@ -1,0 +1,23 @@
+schema_version: 3
+model: mode5_current_domain_m1
+physics_timestep_sec: null
+priors:
+  static_calibration_file: null
+  delay_calibration_file: null
+stage_d:
+  fixed_parameters: [aP_A_per_rad, Ktau_eff_Nm_per_A, delay_s]
+  optimized_parameters: [aD_A_s_per_rad, armature_kg_m2, coulomb_friction_Nm, viscous_friction_Nm_s_per_rad]
+  parameter_bounds: null
+  initial_parameters: null
+  independent_seeds: null
+  max_function_evaluations: null
+  evaluation_stride: null
+stage_e:
+  enabled: false
+  optimized_parameters: [aP_A_per_rad, aD_A_s_per_rad, Ktau_eff_Nm_per_A, delay_s, armature_kg_m2, coulomb_friction_Nm, viscous_friction_Nm_s_per_rad]
+  uncertainty_bounds: null
+loss:
+  position_scale_rad: null
+  velocity_scale_rad_s: null
+  current_scale_A: null
+  weights: null

@@ -1,0 +1,11 @@
+schema_version: 3
+trajectory: slowly_raise_lower
+parameters:
+  center_rad: null
+  lower_rad: null
+  upper_rad: null
+  speed_rad_s: null
+  cycles: null
+  endpoint_hold_sec: null
+  center_hold_sec: null
+

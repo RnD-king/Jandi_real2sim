@@ -1,0 +1,12 @@
+schema_version: 3
+trajectory: delay_probe
+parameters:
+  mechanical_configuration: null
+  center_rad: null
+  step_amplitudes_rad: null
+  hold_sec: null
+  repeats: null
+  onset_current_threshold_A: null
+  pre_event_baseline_sec: null
+  response_search_sec: null
+

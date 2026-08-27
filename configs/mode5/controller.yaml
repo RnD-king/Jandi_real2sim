@@ -1,24 +1,18 @@
-schema_version: 1
+schema_version: 3
 
-# null은 의도적인 실행 잠금이다. 실제 사용할 레지스터 값으로 채운다.
-# Mode 5의 Goal Current는 Position PID가 요구하는 전류의 상한이다.
+# 실제 Jandi에서 사용할 값을 그대로 기록한다. 식별기가 이 값을 바꾸지 않는다.
+# P/D, Goal Current/Current Limit, Goal PWM/PWM Limit은 추측값을 금지한다.
 mode5_registers:
   operating_mode: 5
-
-  position_p_gain: 350
+  drive_mode: null
+  position_p_gain: null
   position_i_gain: 0
-  position_d_gain: 0
-
+  position_d_gain: null
   feedforward_1st_gain: 0
   feedforward_2nd_gain: 0
-
   profile_velocity: 0
   profile_acceleration: 0
-
-  goal_current_raw: 900
-  expected_current_limit_raw: 900
-
-  goal_pwm_raw: 885
-  expected_pwm_limit_raw: 885
-
-  bus_watchdog_raw: 5
+  goal_current_raw: null
+  expected_current_limit_raw: null
+  goal_pwm_raw: null
+  expected_pwm_limit_raw: null

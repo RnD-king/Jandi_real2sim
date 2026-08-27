@@ -1,0 +1,31 @@
+schema_version: 3
+
+confirmations:
+  pilot: PILOT_MX106_MODE5
+  static: CALIBRATE_MX106_MODE5
+  delay: CALIBRATE_DELAY_MX106_MODE5
+  collect: COLLECT_MX106_MODE5
+
+safety:
+  software_position_min_rad: null
+  software_position_max_rad: null
+  maximum_temperature_c: null
+  minimum_input_voltage_v: null
+  maximum_input_voltage_v: null
+  maximum_abs_current_A: null
+  maximum_abs_pwm_fraction: null
+  maximum_abs_position_error_rad: null
+  maximum_consecutive_overruns: null
+  oscillation_velocity_limit_rad_s: null
+  transition_duration_sec: null
+  between_runs_sec: null
+  warmup_procedure: null
+
+approval:
+  pilot_passed: false
+
+pilot:
+  mechanical_configuration: null
+  center_rad: null
+  amplitude_rad: null
+  hold_sec: null

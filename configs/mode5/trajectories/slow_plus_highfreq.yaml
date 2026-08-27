@@ -1,0 +1,11 @@
+schema_version: 3
+trajectory: slow_plus_highfreq
+parameters:
+  center_rad: null
+  slow_amplitude_rad: null
+  slow_frequency_hz: null
+  high_frequency_amplitude_rad: null
+  high_frequency_hz: null
+  duration_sec: null
+  center_hold_sec: null
+

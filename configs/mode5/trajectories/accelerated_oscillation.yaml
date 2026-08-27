@@ -1,0 +1,10 @@
+schema_version: 3
+trajectory: accelerated_oscillation
+parameters:
+  center_rad: null
+  amplitude_rad: null
+  start_frequency_hz: null
+  end_frequency_hz: null
+  duration_sec: null
+  center_hold_sec: null
+

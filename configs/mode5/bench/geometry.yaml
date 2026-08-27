@@ -1,0 +1,16 @@
+schema_version: 3
+arm_lengths_m: {L1: null, L2: null}
+arm_mass_kg: null
+arm_com_radius_m: null
+arm_inertia_kg_m2: null
+arm_inertia_reference: null  # about_com 또는 about_pivot
+gravity_m_s2: 9.80665
+joint_axis_xyz: null
+gravity_zero_angle_rad: null
+gravity_torque_sign: null
+coordinate:
+  zero_definition: null
+  positive_direction: null
+  current_positive_direction: null
+  gravity_torque_positive_direction: null
+  mujoco_positive_direction: null

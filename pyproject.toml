@@ -32,9 +32,13 @@ jandi-r2s-campaign-check = "jandi_real2sim.cli.check_campaign:main"
 jandi-r2s-collect-p350 = "jandi_real2sim.cli.collect_p350_campaign:main"
 jandi-r2s-collect-campaign = "jandi_real2sim.cli.collect_campaign:main"
 jandi-r2s-mode5-check = "jandi_real2sim.mode5.cli:check_main"
+jandi-r2s-mode5-pilot = "jandi_real2sim.mode5.cli:pilot_main"
+jandi-r2s-mode5-static = "jandi_real2sim.mode5.cli:static_main"
+jandi-r2s-mode5-delay = "jandi_real2sim.mode5.cli:delay_main"
 jandi-r2s-mode5-collect = "jandi_real2sim.mode5.cli:collect_main"
 jandi-r2s-mode5-fit = "jandi_real2sim.mode5.cli:fit_main"
-jandi-r2s-mode5-compare = "jandi_real2sim.mode5.cli:compare_main"
+jandi-r2s-mode5-validate = "jandi_real2sim.mode5.cli:validate_main"
+jandi-r2s-mode5-report = "jandi_real2sim.mode5.cli:report_main"
 
 [build-system]
 requires = ["uv_build>=0.11.32,<0.12.0"]
