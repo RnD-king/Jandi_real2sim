@@ -10,6 +10,8 @@ dependencies = [
     "mujoco>=3.3,<4",
     "numpy>=1.26,<2.5",
     "pyyaml>=6,<7",
+    "pyqtgraph>=0.13.7,<1",
+    "pyside6>=6.8,<7",
     "scipy>=1.14,<2",
 ]
 
@@ -39,6 +41,8 @@ jandi-r2s-mode5-collect = "jandi_real2sim.mode5.cli:collect_main"
 jandi-r2s-mode5-fit = "jandi_real2sim.mode5.cli:fit_main"
 jandi-r2s-mode5-validate = "jandi_real2sim.mode5.cli:validate_main"
 jandi-r2s-mode5-report = "jandi_real2sim.mode5.cli:report_main"
+jandi-r2s-mode5-gui = "jandi_real2sim.mode5.gui_app:main"
+jandi-r2s-mode5-select-attempt = "jandi_real2sim.mode5.cli:select_attempt_main"
 
 [build-system]
 requires = ["uv_build>=0.11.32,<0.12.0"]
