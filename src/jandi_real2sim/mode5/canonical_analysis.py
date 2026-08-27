@@ -17,7 +17,7 @@ import yaml
 from scipy.optimize import least_squares
 
 from .canonical_config import CanonicalCampaign
-from .canonical_model import replay
+from .canonical_model import replay, zoh_command
 from .canonical_trajectories import dynamic_run_specs, static_run_specs
 from .spec import DEFAULT_CAMPAIGN, DYNAMIC_RUN_COUNT, STATIC_RUN_COUNT
 
@@ -42,7 +42,7 @@ class Run:
 
 
 NUMERIC_COLUMNS = (
-    "sample_index", "host_time_ns", "command_tx_after_ns", "goal_position_rad",
+    "sample_index", "host_time_ns", "command_tx_after_ns", "command_event", "goal_position_rad",
     "present_position_rad", "present_velocity_rad_s", "present_current_A",
     "present_pwm_fraction", "temperature_C", "current_saturated", "pwm_saturated",
 )
@@ -98,8 +98,10 @@ def _robust_linear(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray
     return result.x, np.sqrt(np.maximum(0.0, np.diag(covariance))), float(np.sqrt(np.mean(residual**2)))
 
 
-def estimate_static(cfg: CanonicalCampaign, runs: list[Run]) -> dict[str, Any]:
+def estimate_static(cfg: CanonicalCampaign, runs: list[Run], bootstrap: dict[str, Any]) -> dict[str, Any]:
     rows: list[dict[str, float | str]] = []
+    rejected: dict[str, int] = {}
+    rejected_total = 0
     gravity = float(cfg.geometry["gravity_m_s2"])
     offset = float(cfg.geometry["gravity_zero_angle_rad"])
     for run in runs:
@@ -109,17 +111,27 @@ def estimate_static(cfg: CanonicalCampaign, runs: list[Run]) -> dict[str, Any]:
         for phase in dict.fromkeys(c["phase"].tolist()):
             if not str(phase).endswith("_averaging"):
                 continue
-            mask = (c["phase"] == phase) & (c["current_saturated"] == 0) & (c["pwm_saturated"] == 0)
+            mask = c["phase"] == phase
+            reasons = []
             if not np.any(mask):
+                reasons.append("empty_averaging_window")
+            else:
+                if np.any(c["current_saturated"][mask] != 0):
+                    reasons.append("current_saturation")
+                if np.any(c["pwm_saturated"][mask] != 0):
+                    reasons.append("pwm_saturation")
+                if float(np.median(np.abs(c["present_velocity_rad_s"][mask]))) > float(cfg.trajectories["static_calibration"]["maximum_settled_abs_velocity_rad_s"]):
+                    reasons.append("velocity_not_settled")
+                if float(np.std(c["present_position_rad"][mask])) > float(cfg.trajectories["static_calibration"]["maximum_settled_position_std_rad"]):
+                    reasons.append("position_not_stable")
+                if float(np.std(c["present_current_A"][mask])) > float(cfg.trajectories["static_calibration"]["maximum_settled_current_std_A"]):
+                    reasons.append("current_not_stable")
+            if reasons:
+                rejected_total += 1
+                for reason in reasons:
+                    rejected[reason] = rejected.get(reason, 0) + 1
                 continue
             q = float(np.median(c["present_position_rad"][mask]))
-            qd = float(np.median(np.abs(c["present_velocity_rad_s"][mask])))
-            if qd > float(cfg.trajectories["static_calibration"]["maximum_settled_abs_velocity_rad_s"]):
-                continue
-            if float(np.std(c["present_position_rad"][mask])) > float(cfg.trajectories["static_calibration"]["maximum_settled_position_std_rad"]):
-                continue
-            if float(np.std(c["present_current_A"][mask])) > float(cfg.trajectories["static_calibration"]["maximum_settled_current_std_A"]):
-                continue
             current = float(np.median(c["present_current_A"][mask]))
             goal = float(np.median(c["goal_position_rad"][mask]))
             moment = gravity * (
@@ -129,7 +141,9 @@ def estimate_static(cfg: CanonicalCampaign, runs: list[Run]) -> dict[str, Any]:
             required_torque = float(cfg.geometry["gravity_torque_sign"]) * moment * math.sin(q + offset)
             rows.append({"q": q, "goal": goal, "error": goal - q, "current": current,
                          "required_torque": required_torque, "branch": branch,
-                         "mechanical": run.mechanical, "approach": approach})
+                         "mechanical": run.mechanical, "approach": approach,
+                         "run": str(run.path), "mass_kg": cfg.load_mass_kg(run.mechanical),
+                         "arm_length_m": cfg.arm_length_m(run.mechanical)})
     if len(rows) < 12:
         raise ValueError(f"valid static plateau가 부족합니다: {len(rows)}")
     current = np.asarray([float(row["current"]) for row in rows])
@@ -138,6 +152,47 @@ def estimate_static(cfg: CanonicalCampaign, runs: list[Run]) -> dict[str, Any]:
     branch = np.asarray([float(row["branch"]) for row in rows])
     ktau, ktau_sigma, torque_rmse = _robust_linear(np.column_stack((current, branch, np.ones(len(rows)))), torque)
     ap, ap_sigma, current_rmse = _robust_linear(np.column_stack((error, branch, np.ones(len(rows)))), current)
+    torque_design = np.column_stack((current, branch, np.ones(len(rows))))
+    current_design = np.column_stack((error, branch, np.ones(len(rows))))
+    repeat_count = int(bootstrap["repeat_count"])
+    seed = int(bootstrap["random_seed"])
+    if repeat_count < 2:
+        raise ValueError("static bootstrap repeat_count는 2 이상이어야 합니다.")
+    run_names = sorted(set(str(row["run"]) for row in rows))
+    by_run = {name: [row for row in rows if row["run"] == name] for name in run_names}
+    rng = np.random.default_rng(seed)
+    bootstrap_ktau: list[float] = []
+    bootstrap_ap: list[float] = []
+    for _ in range(repeat_count):
+        selected = rng.choice(run_names, size=len(run_names), replace=True)
+        sampled = [row for name in selected for row in by_run[str(name)]]
+        sample_current = np.asarray([float(row["current"]) for row in sampled])
+        sample_torque = np.asarray([float(row["required_torque"]) for row in sampled])
+        sample_error = np.asarray([float(row["error"]) for row in sampled])
+        sample_branch = np.asarray([float(row["branch"]) for row in sampled])
+        torque_x = np.column_stack((sample_current, sample_branch, np.ones(len(sampled))))
+        current_x = np.column_stack((sample_error, sample_branch, np.ones(len(sampled))))
+        if np.linalg.matrix_rank(torque_x) < 3 or np.linalg.matrix_rank(current_x) < 3:
+            continue
+        bootstrap_ktau.append(float(_robust_linear(torque_x, sample_torque)[0][0]))
+        bootstrap_ap.append(float(_robust_linear(current_x, sample_current)[0][0]))
+    if len(bootstrap_ktau) < max(2, repeat_count // 2):
+        raise ValueError("run-level static bootstrap의 유효 표본이 부족합니다.")
+    ktau_bootstrap_std = float(np.std(bootstrap_ktau, ddof=1))
+    ap_bootstrap_std = float(np.std(bootstrap_ap, ddof=1))
+    ktau_ci = [float(value) for value in np.percentile(bootstrap_ktau, [2.5, 97.5])]
+    ap_ci = [float(value) for value in np.percentile(bootstrap_ap, [2.5, 97.5])]
+    torque_condition = float(np.linalg.cond(torque_design))
+    current_condition = float(np.linalg.cond(current_design))
+    warning_threshold = float(bootstrap["condition_number_warning_threshold"])
+    warnings = []
+    if torque_condition > warning_threshold:
+        warnings.append("Ktau regression design is ill-conditioned")
+    if current_condition > warning_threshold:
+        warnings.append("aP regression design is ill-conditioned")
+    for index, row in enumerate(rows):
+        row["torque_residual_Nm"] = float(torque[index] - torque_design[index] @ ktau)
+        row["current_residual_A"] = float(current[index] - current_design[index] @ ap)
     by_condition: dict[str, Any] = {}
     for mechanical in sorted(set(str(row["mechanical"]) for row in rows)):
         mask = np.asarray([row["mechanical"] == mechanical for row in rows])
@@ -146,21 +201,36 @@ def estimate_static(cfg: CanonicalCampaign, runs: list[Run]) -> dict[str, Any]:
             by_condition[mechanical] = {"aP_A_per_rad": float(local[0]), "points": int(np.count_nonzero(mask))}
     return {
         "model": "static_branch_robust_regression",
-        "plateau_count": len(rows),
+        "accepted_plateau_count": len(rows), "rejected_plateau_count": rejected_total,
+        "reject_reason_counts": rejected,
         "Ktau_reference_from_stall_Nm_per_A": 1.615,
-        "Ktau_eff_prior_Nm_per_A": float(ktau[0]), "Ktau_static_uncertainty_Nm_per_A": float(ktau_sigma[0]),
+        "Ktau_eff_prior_Nm_per_A": float(ktau[0]),
+        "Ktau_regression_sigma_Nm_per_A": float(ktau_sigma[0]),
+        "Ktau_bootstrap_std_Nm_per_A": ktau_bootstrap_std, "Ktau_bootstrap_CI95_Nm_per_A": ktau_ci,
+        "Ktau_static_uncertainty_Nm_per_A": max(float(ktau_sigma[0]), ktau_bootstrap_std),
         "Ktau_branch_difference_Nm": float(2.0 * abs(ktau[1])), "torque_intercept_Nm": float(ktau[2]),
-        "aP_prior_A_per_rad": float(ap[0]), "aP_uncertainty_A_per_rad": float(ap_sigma[0]),
+        "aP_prior_A_per_rad": float(ap[0]), "aP_regression_sigma_A_per_rad": float(ap_sigma[0]),
+        "aP_bootstrap_std_A_per_rad": ap_bootstrap_std, "aP_bootstrap_CI95_A_per_rad": ap_ci,
+        "aP_uncertainty_A_per_rad": max(float(ap_sigma[0]), ap_bootstrap_std),
         "aP_branch_difference_A": float(2.0 * abs(ap[1])), "current_intercept_A": float(ap[2]),
         "torque_regression_rmse_Nm": torque_rmse, "current_regression_rmse_A": current_rmse,
+        "regression_rank": {"Ktau": int(np.linalg.matrix_rank(torque_design)), "aP": int(np.linalg.matrix_rank(current_design))},
+        "regression_condition_number": {"Ktau": torque_condition, "aP": current_condition},
+        "bootstrap": {"unit": "whole_static_sweep_run", "repeat_count": repeat_count,
+                      "valid_repeat_count": len(bootstrap_ktau), "random_seed": seed},
+        "warnings": warnings, "diagnostic_rows": rows,
         "aP_by_mechanical_configuration": by_condition,
+        "diagnostic_note": "possible load-dependent residual trend; inspect static_residual_diagnostics.png",
+        "model_extension_decision": "manual review required; M1 is not extended automatically",
     }
 
 
 def estimate_delay(cfg: CanonicalCampaign, run: Run) -> dict[str, Any]:
     c = run.columns
     t = c["host_time_ns"] * 1e-9
-    goal = c["goal_position_rad"]
+    event_mask = c["command_event"] == 1
+    event_t = c["command_tx_after_ns"][event_mask] * 1e-9
+    goal = c["goal_position_rad"][event_mask]
     current = c["present_current_A"]
     changes = np.flatnonzero(np.abs(np.diff(goal)) > 1e-9) + 1
     spec = cfg.trajectories["delay_probe"]
@@ -169,9 +239,9 @@ def estimate_delay(cfg: CanonicalCampaign, run: Run) -> dict[str, Any]:
     search_sec = float(spec["response_search_sec"])
     rows = []
     for index in changes:
-        event_t = c["command_tx_after_ns"][index] * 1e-9
-        before = (t >= event_t - baseline_sec) & (t < event_t)
-        after = np.flatnonzero((t >= event_t) & (t <= event_t + search_sec))
+        command_time = event_t[index]
+        before = (t >= command_time - baseline_sec) & (t < command_time)
+        after = np.flatnonzero((t >= command_time) & (t <= command_time + search_sec))
         if not np.any(before) or not len(after):
             continue
         baseline = float(np.median(current[before]))
@@ -179,14 +249,15 @@ def estimate_delay(cfg: CanonicalCampaign, run: Run) -> dict[str, Any]:
         if not len(onset):
             continue
         amplitude = float(goal[index] - goal[index - 1])
-        rows.append({"delay_s": float(t[onset[0]] - event_t), "direction": "positive" if amplitude > 0 else "negative", "amplitude_rad": abs(amplitude)})
+        rows.append({"delay_s": float(t[onset[0]] - command_time), "direction": "positive" if amplitude > 0 else "negative", "amplitude_rad": abs(amplitude)})
     if not rows:
         raise ValueError("Present Current onset을 검출하지 못했습니다.")
     delays = np.asarray([row["delay_s"] for row in rows])
     by_direction = {name: float(np.mean([row["delay_s"] for row in rows if row["direction"] == name])) for name in ("positive", "negative") if any(row["direction"] == name for row in rows)}
     by_amplitude = {f"{amp:.9g}": float(np.mean([row["delay_s"] for row in rows if row["amplitude_rad"] == amp])) for amp in sorted(set(row["amplitude_rad"] for row in rows))}
     dt = float(np.median(np.diff(t)))
-    goal_edge = np.diff(goal, prepend=goal[0])
+    reconstructed_goal = zoh_command(t, event_t, goal)
+    goal_edge = np.diff(reconstructed_goal, prepend=reconstructed_goal[0])
     current_edge = np.diff(current, prepend=current[0])
     max_lag = max(1, round(search_sec / dt))
     scores = []
@@ -195,10 +266,12 @@ def estimate_delay(cfg: CanonicalCampaign, run: Run) -> dict[str, Any]:
         right = current_edge[lag:]
         scores.append(abs(float(np.dot(left, right))))
     alignment_delay = int(np.argmax(scores)) * dt
-    return {"method": "threshold_onset_plus_derivative_alignment", "delay_mean_s": float(np.mean(delays)),
+    measured_resolution = float(np.median(np.diff(t)))
+    return {"method": "host_syncWriteTxOnly_to_present_current_threshold_plus_derivative_alignment", "delay_mean_s": float(np.mean(delays)),
             "delay_std_s": float(np.std(delays, ddof=1)) if len(delays) > 1 else 0.0,
             "delay_median_s": float(np.median(delays)), "delay_by_direction_s": by_direction,
-            "delay_by_amplitude_s": by_amplitude, "sampling_resolution_s": 1.0 / float(cfg.timing["delay_telemetry_target_rate_hz"] or cfg.timing["telemetry_target_rate_hz"]),
+            "delay_by_amplitude_s": by_amplitude, "sampling_resolution_s": measured_resolution,
+            "requested_sampling_resolution_s": 1.0 / float(cfg.timing["delay_telemetry_target_rate_hz"] or cfg.command_rate_hz),
             "alignment_delay_s": float(alignment_delay), "event_count": len(rows), "events": rows}
 
 
@@ -208,6 +281,9 @@ def _load_fit_config(path: Path) -> dict[str, Any]:
         raise ValueError("fit.yaml schema_version은 3이어야 합니다.")
     required = {
         "physics_timestep_sec": raw.get("physics_timestep_sec"),
+        "static_bootstrap.repeat_count": raw["static_bootstrap"].get("repeat_count"),
+        "static_bootstrap.random_seed": raw["static_bootstrap"].get("random_seed"),
+        "static_bootstrap.condition_number_warning_threshold": raw["static_bootstrap"].get("condition_number_warning_threshold"),
         "stage_d.parameter_bounds": raw["stage_d"].get("parameter_bounds"),
         "stage_d.initial_parameters": raw["stage_d"].get("initial_parameters"),
         "stage_d.independent_seeds": raw["stage_d"].get("independent_seeds"),
@@ -229,9 +305,11 @@ def _load_fit_config(path: Path) -> dict[str, Any]:
 def _dynamic_arrays(run: Run, stride: int) -> tuple[np.ndarray, ...]:
     c = run.columns
     t = (c["host_time_ns"] - c["host_time_ns"][0]) * 1e-9
-    command_t = (c["command_tx_after_ns"] - c["host_time_ns"][0]) * 1e-9
+    event = c["command_event"] == 1
+    command_t = (c["command_tx_after_ns"][event] - c["host_time_ns"][0]) * 1e-9
+    command_goal = c["goal_position_rad"][event]
     index = np.arange(0, len(t), stride)
-    return t[index], command_t, c["goal_position_rad"], c["present_position_rad"][index], c["present_velocity_rad_s"][index], c["present_current_A"][index]
+    return t[index], command_t, command_goal, c["present_position_rad"][index], c["present_velocity_rad_s"][index], c["present_current_A"][index]
 
 
 def estimate_ad(prior_ap: float, delay_s: float, runs: list[Run]) -> dict[str, Any]:
@@ -241,9 +319,10 @@ def estimate_ad(prior_ap: float, delay_s: float, runs: list[Run]) -> dict[str, A
             continue
         c = run.columns
         t = c["host_time_ns"] * 1e-9
-        indices = np.searchsorted(t, t - delay_s, side="right") - 1
-        indices = np.clip(indices, 0, len(t) - 1)
-        delayed_goal = c["goal_position_rad"][indices]
+        event = c["command_event"] == 1
+        command_t = c["command_tx_after_ns"][event] * 1e-9
+        command_goal = c["goal_position_rad"][event]
+        delayed_goal = zoh_command(t - delay_s, command_t, command_goal)
         x = -c["present_velocity_rad_s"]
         y = c["present_current_A"] - prior_ap * (delayed_goal - c["present_position_rad"])
         valid = np.isfinite(x) & np.isfinite(y) & (c["current_saturated"] == 0) & (c["pwm_saturated"] == 0)
@@ -274,13 +353,13 @@ def _metrics(run: Run, sim: Any, q: np.ndarray, qd: np.ndarray, current: np.ndar
 def fit(cfg: CanonicalCampaign, fit_config_path: Path) -> Path:
     if cfg.holdout_configuration is None:
         raise ValueError("holdout_configuration을 데이터 확인 전에 고정해야 합니다.")
-    static = estimate_static(cfg, _require_runs(cfg, "static"))
+    fit_cfg = _load_fit_config(fit_config_path.expanduser().resolve())
+    static = estimate_static(cfg, _require_runs(cfg, "static"), fit_cfg["static_bootstrap"])
     delay = estimate_delay(cfg, _require_runs(cfg, "delay")[0])
     dynamic = _require_runs(cfg, "dynamic")
     fit_runs = [run for run in dynamic if run.mechanical != cfg.holdout_configuration]
     if len(fit_runs) != 45:
         raise AssertionError(f"fit run count={len(fit_runs)}, expected=45")
-    fit_cfg = _load_fit_config(fit_config_path.expanduser().resolve())
     ad = estimate_ad(float(static["aP_prior_A_per_rad"]), float(delay["delay_median_s"]), fit_runs)
     names = ("aD_A_s_per_rad", "armature_kg_m2", "coulomb_friction_Nm", "viscous_friction_Nm_s_per_rad")
     bounds_cfg = fit_cfg["stage_d"]["parameter_bounds"]
@@ -397,9 +476,38 @@ def fit(cfg: CanonicalCampaign, fit_config_path: Path) -> Path:
     (output / "manifest.json").write_text(json.dumps({"config": cfg.config_manifest(),
         "fit_config": {"path": str(fit_path), "sha256": hashlib.sha256(fit_path.read_bytes()).hexdigest()},
         "holdout_configuration": cfg.holdout_configuration, "fit_runs": 45, "held_out_runs": 9,
+        "holdout_scope": "dynamic trajectories only; static calibration uses all six configurations",
         "selected_fit_stage": selected_stage}, indent=2) + "\n")
     (output / "residual_summary.json").write_text(json.dumps({"status": "pending held-out validation"}, indent=2) + "\n")
+    _plot_static_diagnostics(static, output / "plots")
     return output
+
+
+def _plot_static_diagnostics(static: dict[str, Any], plots: Path) -> None:
+    """Plot diagnostics only; model extension remains a manual decision."""
+    rows = static["diagnostic_rows"]
+    x_fields = (
+        ("required_torque", "|gravity torque| [Nm]", True),
+        ("mass_kg", "load mass [kg]", False),
+        ("arm_length_m", "arm length [m]", False),
+        ("branch", "approach direction (+/-)", False),
+        ("q", "angle [rad]", False),
+        ("current", "Present Current [A]", False),
+    )
+    fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+    for ax, (field, label, absolute) in zip(axes.flat, x_fields):
+        x = np.asarray([float(row[field]) for row in rows])
+        if absolute:
+            x = np.abs(x)
+        y = np.asarray([float(row["torque_residual_Nm"]) for row in rows])
+        ax.scatter(x, y, s=12, alpha=0.55)
+        ax.axhline(0.0, color="black", linewidth=0.7)
+        ax.set_xlabel(label)
+        ax.set_ylabel("static torque residual [Nm]")
+    fig.suptitle("Static M1 residual diagnostics (model extension: manual review)")
+    fig.tight_layout()
+    fig.savefig(plots / "static_residual_diagnostics.png", dpi=160)
+    plt.close(fig)
 
 
 def _result_fit_config(cfg: CanonicalCampaign, target: Path) -> dict[str, Any]:
@@ -437,6 +545,7 @@ def report(cfg: CanonicalCampaign, result_dir: Path) -> Path:
     fit_metrics = json.loads((target / "metrics_fit.json").read_text())
     validation_metrics = json.loads((target / "metrics_validation.json").read_text())
     params = yaml.safe_load((target / "params_mode5_m1.yaml").read_text())
+    static = json.loads((target / "static_calibration.json").read_text())
     plots = target / "plots"
     plots.mkdir(exist_ok=True)
     labels = [f"{m['trajectory']} r{m['repeat']}" for m in validation_metrics]
@@ -445,7 +554,7 @@ def report(cfg: CanonicalCampaign, result_dir: Path) -> Path:
     ax.bar(np.arange(len(values)), values)
     ax.set_xticks(np.arange(len(values)), labels, rotation=45, ha="right")
     ax.set_ylabel("position RMSE [rad]")
-    ax.set_title(f"Held-out: {cfg.holdout_configuration}")
+    ax.set_title(f"Dynamic trajectory holdout: {cfg.holdout_configuration}")
     fig.tight_layout()
     fig.savefig(plots / "heldout_position_rmse.png", dpi=160)
     plt.close(fig)
@@ -496,10 +605,13 @@ def report(cfg: CanonicalCampaign, result_dir: Path) -> Path:
                 "repeatability_position_rmse_std_rad": repeatability,
                 "model_extension_decision": "manual residual review required"}
     (target / "residual_summary.json").write_text(json.dumps(residual, indent=2) + "\n")
-    text = ["# Mode 5 current-domain M1 report", "", f"- Holdout: {cfg.holdout_configuration}",
+    text = ["# Mode 5 current-domain M1 report", "", f"- Dynamic trajectory holdout configuration: {cfg.holdout_configuration}",
             f"- Fit runs: {len(fit_metrics)}", f"- Validation runs: {len(validation_metrics)}",
+            f"- Static accepted/rejected plateaus: {static['accepted_plateau_count']}/{static['rejected_plateau_count']}",
+            f"- Static reject reasons: {static['reject_reason_counts']}",
             f"- Fit mean position RMSE: {residual['fit_position_rmse_mean_rad']:.6g} rad",
             f"- Validation mean position RMSE: {residual['validation_position_rmse_mean_rad']:.6g} rad", "",
+            f"Static diagnostic: {static['diagnostic_note']}",
             "Whole-Jandi parameter update is not automatic. Review trajectory/configuration metrics, repeatability, saturation, thermal drift, and residual plots first.", "",
             "```yaml", yaml.safe_dump(params, sort_keys=False).rstrip(), "```"]
     path = target / "report.md"

@@ -27,6 +27,9 @@ def _execution(parser: argparse.ArgumentParser, kind: str) -> None:
     parser.add_argument("--execute", action="store_true", help="실제 모터에 명령을 전송합니다. 기본값은 dry-run입니다.")
     parser.add_argument("--confirm", default="", help=f"실행 확인 문자열: {CONFIRMATIONS[kind]}")
     parser.add_argument("--resume", action="store_true", help="이미 완료된 valid run은 그대로 두고 건너뜁니다.")
+    if kind in ("static", "collect"):
+        parser.add_argument("--override-order", action="store_true", help="planned NEXT RUN 순서를 명시적으로 우회합니다.")
+        parser.add_argument("--override-reason", default="", help="순서 우회 이유. --override-order와 함께 필수입니다.")
 
 
 def _load(args: argparse.Namespace) -> CanonicalCampaign:
@@ -59,6 +62,23 @@ def _existing_valid(path: Path) -> bool:
         return False
 
 
+def _next_spec(cfg: CanonicalCampaign, kind: str):
+    specs = static_run_specs(cfg) if kind == "static" else dynamic_run_specs(cfg)
+    return next((spec for spec in specs if not _existing_valid(run_directory(cfg, spec.relative_directory))), None)
+
+
+def _enforce_order(cfg: CanonicalCampaign, args: argparse.Namespace, kind: str, relative: str) -> str | None:
+    planned = _next_spec(cfg, kind)
+    if planned is None or planned.relative_directory == relative:
+        return None
+    if not args.override_order:
+        raise SystemExit(f"요청 run은 planned NEXT RUN이 아닙니다. NEXT: {planned.relative_directory}")
+    reason = args.override_reason.strip()
+    if not reason:
+        raise SystemExit("--override-order에는 비어 있지 않은 --override-reason이 필요합니다.")
+    return reason
+
+
 def _execute_one(cfg: CanonicalCampaign, args: argparse.Namespace, kind: str, relative: str, mechanical: str, trajectory: str, repeat: int, samples: list) -> None:
     if not args.execute:
         print(f"PLAN {relative}: {len(samples)} samples, {len(samples) / cfg.command_rate_hz:.2f} s")
@@ -69,7 +89,8 @@ def _execute_one(cfg: CanonicalCampaign, args: argparse.Namespace, kind: str, re
             print(f"SKIP valid raw run: {target}")
             return
         raise FileExistsError(f"raw run을 overwrite하지 않습니다: {target}")
-    print(collect_run(cfg, kind, relative, mechanical, trajectory, repeat, samples))
+    override_reason = _enforce_order(cfg, args, kind, relative) if kind in ("static", "collect") else None
+    print(collect_run(cfg, kind, relative, mechanical, trajectory, repeat, samples, override_reason))
 
 
 def check_main() -> None:
@@ -85,6 +106,10 @@ def check_main() -> None:
         missing = cfg.execution_missing(kind)
         print(f"{kind:7s}: {'READY' if not missing else f'LOCKED ({len(missing)} unresolved)'}")
     _print_missing(cfg, "collect")
+    if cfg.campaign_id is not None and cfg.execution_order in ("grouped", "randomized"):
+        for kind in ("static", "collect"):
+            planned = _next_spec(cfg, kind)
+            print(f"NEXT {kind.upper()}: {planned.relative_directory if planned else '<COMPLETE>'}")
 
 
 def pilot_main() -> None:
@@ -177,7 +202,7 @@ def fit_main() -> None:
 
 def validate_main() -> None:
     from .canonical_analysis import validate
-    parser = _base("사전 지정 mechanical holdout 9-run 검증")
+    parser = _base("사전 지정 dynamic trajectory holdout configuration의 9-run 검증")
     parser.add_argument("--result", type=Path, required=True)
     args = parser.parse_args()
     print(validate(_load(args), args.result))
@@ -185,7 +210,7 @@ def validate_main() -> None:
 
 def report_main() -> None:
     from .canonical_analysis import report
-    parser = _base("Mode-5 M1 plots/metrics/final report 생성")
+    parser = _base("Mode-5 M1 dynamic holdout plots/metrics/final report 생성")
     parser.add_argument("--result", type=Path, required=True)
     args = parser.parse_args()
     print(report(_load(args), args.result))

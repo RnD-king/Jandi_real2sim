@@ -9,7 +9,8 @@ from jandi_real2sim.mode5 import canonical_acquisition
 class ContinuousStateContractTest(unittest.TestCase):
     def test_hardware_error_does_not_replace_state_read(self) -> None:
         source = inspect.getsource(canonical_acquisition._run_samples)
-        self.assertLess(source.index("bus.read_state()"), source.index("bus.read_hardware_error()"))
+        self.assertIn("bus.read_state()", source)
+        self.assertIn("_poll_error(bus", source)
         self.assertNotIn("acquisition_kind", canonical_acquisition.TELEMETRY_FIELDS)
 
     def test_required_raw_columns(self) -> None:

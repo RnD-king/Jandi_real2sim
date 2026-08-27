@@ -142,7 +142,7 @@ class CanonicalCampaign:
         )
         result += _missing(
             self.registers,
-            ("drive_mode", "position_p_gain", "position_d_gain", "goal_current_raw", "expected_current_limit_raw", "goal_pwm_raw", "expected_pwm_limit_raw"),
+            ("drive_mode", "position_p_gain", "position_d_gain", "bus_watchdog_raw", "goal_current_raw", "expected_current_limit_raw", "goal_pwm_raw", "expected_pwm_limit_raw"),
             "mode5_registers",
         )
         result += _missing(
@@ -161,7 +161,7 @@ class CanonicalCampaign:
     def bench_missing(self) -> list[str]:
         result = _missing(
             self.geometry,
-            ("arm_mass_kg", "arm_com_radius_m", "arm_inertia_kg_m2", "arm_inertia_reference", "joint_axis_xyz", "gravity_zero_angle_rad", "gravity_torque_sign"),
+            ("arm_mass_kg", "arm_com_radius_m", "arm_inertia_kg_m2", "arm_inertia_reference", "gravity_zero_angle_rad", "gravity_torque_sign"),
             "bench.geometry",
         )
         for name in ("L1", "L2"):
@@ -186,8 +186,14 @@ class CanonicalCampaign:
         result += self.bench_missing()
         if not self.approval.get("pilot_passed", False):
             result.append("approval.pilot_passed")
+        if self.approval.get("warmup_acknowledged_at") is None:
+            result.append("approval.warmup_acknowledged_at")
         if experiment == "static":
             result += self.trajectory_missing("static_calibration")
+            if self.execution_order is None:
+                result.append("campaign.execution_order")
+            if self.randomization_seed is None:
+                result.append("campaign.randomization_seed")
         elif experiment == "delay":
             result += self.trajectory_missing("delay_probe")
         elif experiment == "collect":
@@ -291,6 +297,9 @@ def _validate_structure(cfg: CanonicalCampaign, raw: dict[str, Any], safety_raw:
             raise ValueError(f"mode5_registers.{name}이 [0,16383] 밖입니다.")
     if cfg.registers.get("position_p_gain") is not None and int(cfg.registers["position_p_gain"]) <= 0:
         raise ValueError("position_p_gain은 실제 사용 양수값이어야 합니다.")
+    watchdog = cfg.registers.get("bus_watchdog_raw")
+    if watchdog is not None and not 1 <= int(watchdog) <= 127:
+        raise ValueError("bus_watchdog_raw는 활성 범위 [1,127]이어야 합니다 (20 ms/count).")
     if cfg.registers.get("goal_current_raw") is not None and cfg.registers.get("expected_current_limit_raw") is not None:
         if not 0 < abs(int(cfg.registers["goal_current_raw"])) <= int(cfg.registers["expected_current_limit_raw"]):
             raise ValueError("Goal Current는 0보다 크고 Current Limit 이하여야 합니다.")

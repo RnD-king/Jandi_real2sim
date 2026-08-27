@@ -8,4 +8,5 @@ parameters:
   cycles: null
   endpoint_hold_sec: null
   center_hold_sec: null
-
+  transition_duration_sec: null
+  maximum_command_speed_rad_s: null

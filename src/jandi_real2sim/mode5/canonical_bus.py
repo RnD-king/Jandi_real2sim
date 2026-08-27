@@ -15,6 +15,9 @@ ADDR = {
     "hardware_error": (70, 1, False), "position_d_gain": (80, 2, False),
     "position_i_gain": (82, 2, False), "position_p_gain": (84, 2, False),
     "feedforward_2nd_gain": (88, 2, False), "feedforward_1st_gain": (90, 2, False),
+    # ROBOTIS MX-106R(2.0): signed 1 byte, 0=clear/disable, 1..127=20 ms/count,
+    # -1=watchdog error state.
+    "bus_watchdog_raw": (98, 1, True),
     "goal_pwm_raw": (100, 2, True), "goal_current_raw": (102, 2, True),
     "profile_acceleration": (108, 4, False), "profile_velocity": (112, 4, False),
     "goal_position_raw": (116, 4, True),
@@ -51,6 +54,7 @@ class CanonicalMode5Bus:
         self._port: Any | None = None
         self._packet: Any | None = None
         self._reader: Any | None = None
+        self._goal_writer: Any | None = None
 
     def __enter__(self) -> "CanonicalMode5Bus":
         self.open()
@@ -75,11 +79,16 @@ class CanonicalMode5Bus:
         if not self._reader.addParam(int(self.cfg.hardware["motor_id"])):
             self.close()
             raise RuntimeError("state GroupSyncRead addParam 실패")
+        # GroupSyncWrite.txPacket() delegates to syncWriteTxOnly: no Status
+        # Packet is awaited, so tx-after is a host transmission-completion time.
+        self._goal_writer = sdk.GroupSyncWrite(self._port, self._packet, 116, 4)
 
     def close(self) -> None:
         if self._port is not None:
             self._port.closePort()
         self._port = None
+        self._reader = None
+        self._goal_writer = None
 
     def _require(self) -> None:
         if self._port is None or self._packet is None or self._sdk is None:
@@ -116,6 +125,8 @@ class CanonicalMode5Bus:
     def configure_and_verify(self) -> dict[str, int]:
         """README §4.4 order: torque-off, Mode/Drive, fixed registers, readback."""
         self.torque(False)
+        # Clear a previous watchdog error before writing any Goal register.
+        self.write("bus_watchdog_raw", 0)
         writes = {
             "drive_mode": self.cfg.registers["drive_mode"],
             "operating_mode": 5,
@@ -131,6 +142,7 @@ class CanonicalMode5Bus:
             self.write(name, int(value))
         expected = {
             **{name: int(value) for name, value in writes.items()},
+            "bus_watchdog_raw": 0,
             "current_limit_raw": int(self.cfg.registers["expected_current_limit_raw"]),
             "pwm_limit_raw": int(self.cfg.registers["expected_pwm_limit_raw"]),
         }
@@ -140,18 +152,48 @@ class CanonicalMode5Bus:
             raise RuntimeError(f"Mode 5 register read-back 불일치: {mismatches}")
         return actual
 
+    def arm_bus_watchdog(self) -> int:
+        """Enable and verify the official Bus Watchdog after Torque ON."""
+        value = int(self.cfg.registers["bus_watchdog_raw"])
+        self.write("bus_watchdog_raw", value)
+        actual = self.read("bus_watchdog_raw")
+        if actual != value:
+            raise RuntimeError(f"Bus Watchdog read-back 불일치: expected={value}, actual={actual}")
+        return actual
+
     def read_configuration_snapshot(self) -> dict[str, int]:
         names = (
             "firmware_version", "drive_mode", "operating_mode", "pwm_limit_raw",
             "current_limit_raw", "position_d_gain", "position_i_gain",
             "position_p_gain", "feedforward_2nd_gain", "feedforward_1st_gain",
-            "goal_pwm_raw", "goal_current_raw", "profile_acceleration", "profile_velocity",
+            "bus_watchdog_raw", "goal_pwm_raw", "goal_current_raw", "profile_acceleration", "profile_velocity",
         )
         return {name: self.read(name) for name in names}
 
     def write_goal_rad(self, angle: float) -> int:
+        """Verified TxRx write, used only outside timestamp-critical loops."""
         raw = self.cfg.rad_to_raw(angle)
         self.write("goal_position_raw", raw)
+        return raw
+
+    def write_goal_rad_no_response(self, angle: float) -> int:
+        """Transmit Goal Position with GroupSyncWrite/syncWriteTxOnly.
+
+        The return time is host packet-transmission completion, not a returned
+        Status Packet timestamp.  State/error reads provide independent checks.
+        """
+        self._require()
+        if self._goal_writer is None:
+            raise RuntimeError("Goal Position GroupSyncWrite가 초기화되지 않았습니다.")
+        raw = self.cfg.rad_to_raw(angle)
+        encoded = raw & 0xFFFFFFFF
+        data = [(encoded >> shift) & 0xFF for shift in (0, 8, 16, 24)]
+        self._goal_writer.clearParam()
+        if not self._goal_writer.addParam(int(self.cfg.hardware["motor_id"]), data):
+            raise RuntimeError("Goal Position GroupSyncWrite addParam 실패")
+        result = self._goal_writer.txPacket()
+        if result != self._sdk.COMM_SUCCESS:
+            raise RuntimeError(f"Goal Position syncWriteTxOnly 실패: {self._packet.getTxRxResult(result)}")
         return raw
 
     def read_state(self) -> State:

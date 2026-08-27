@@ -40,3 +40,9 @@ DYNAMIC_RUN_COUNT = (
     len(MECHANICAL_CONFIGURATIONS) * len(MAIN_TRAJECTORIES) * len(REPEATS)
 )
 
+# ROBOTIS MX-106R(2.0): Realtime Tick(120) is 1 ms/count and wraps after
+# 32767.  This is deliberately not a generic uint16 modulus.
+REALTIME_TICK_MODULUS = 32768
+
+# The equivalent MuJoCo pendulum is defined in one canonical coordinate.
+CANONICAL_HINGE_AXIS = (0.0, 1.0, 0.0)

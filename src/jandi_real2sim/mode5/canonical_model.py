@@ -10,6 +10,7 @@ import numpy as np
 
 from .canonical_acquisition import CURRENT_A_PER_RAW
 from .canonical_config import CanonicalCampaign
+from .spec import CANONICAL_HINGE_AXIS
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,21 @@ class Replay:
     q_rad: np.ndarray
     qd_rad_s: np.ndarray
     current_A: np.ndarray
+
+
+def zoh_command(query_time_sec: np.ndarray, command_time_sec: np.ndarray,
+                command_goal_rad: np.ndarray) -> np.ndarray:
+    """Reconstruct the latest actually transmitted command (previous-value hold)."""
+    query = np.asarray(query_time_sec, dtype=float)
+    event_time = np.asarray(command_time_sec, dtype=float)
+    goals = np.asarray(command_goal_rad, dtype=float)
+    if event_time.ndim != 1 or goals.ndim != 1 or len(event_time) != len(goals) or not len(goals):
+        raise ValueError("ZOH command time/goal은 같은 길이의 비어 있지 않은 1-D 배열이어야 합니다.")
+    if np.any(np.diff(event_time) < 0):
+        raise ValueError("command timestamp는 nondecreasing이어야 합니다.")
+    indices = np.searchsorted(event_time, query, side="right") - 1
+    indices = np.clip(indices, 0, len(goals) - 1)
+    return goals[indices]
 
 
 def _mass_properties(cfg: CanonicalCampaign, mechanical: str) -> tuple[float, float, float]:
@@ -59,7 +75,7 @@ def build_model(cfg: CanonicalCampaign, mechanical: str, params: dict[str, float
   <option timestep="{dt:.12g}" gravity="0 0 {-gravity:.12g}" integrator="implicitfast"/>
   <worldbody>
     <body name="pendulum">
-      <joint name="output" type="hinge" axis="0 1 0"
+      <joint name="output" type="hinge" axis="{CANONICAL_HINGE_AXIS[0]:g} {CANONICAL_HINGE_AXIS[1]:g} {CANONICAL_HINGE_AXIS[2]:g}"
              armature="{float(params['armature_kg_m2']):.12g}"
              frictionloss="{float(params['coulomb_friction_Nm']):.12g}"
              damping="{float(params['viscous_friction_Nm_s_per_rad']):.12g}"/>
@@ -100,13 +116,15 @@ def replay(
     sim_q: list[float] = []
     sim_qd: list[float] = []
     sim_i: list[float] = []
-    index = 0
     end = float(measured_time_sec[-1])
+    goal_trace = zoh_command(
+        np.arange(0.0, end + 2.0 * dt, dt) - delay,
+        command_time_sec,
+        command_goal_rad,
+    )
+    goal_index = 0
     while data.time <= end + dt:
-        query = data.time - delay
-        while index + 1 < len(command_time_sec) and command_time_sec[index + 1] <= query:
-            index += 1
-        goal = float(command_goal_rad[index])
+        goal = float(goal_trace[min(goal_index, len(goal_trace) - 1)])
         current = float(np.clip(a_p * (goal - data.qpos[0]) - a_d * data.qvel[0], -current_cap, current_cap))
         data.ctrl[0] = k_tau * current
         sim_t.append(data.time)
@@ -114,6 +132,7 @@ def replay(
         sim_qd.append(float(data.qvel[0]))
         sim_i.append(current)
         mujoco.mj_step(model, data)
+        goal_index += 1
     t = np.asarray(sim_t)
     return Replay(
         time_sec=measured_time_sec,

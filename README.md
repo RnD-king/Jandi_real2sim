@@ -744,6 +744,11 @@ uv run jandi-r2s-mode5-collect \
 전체 구조만 출력할 수 있지만 실제 모터 실행은 거부한다. 완료된 raw run은 overwrite하지
 않으며, `--resume`은 기존의 valid run을 그대로 두고 건너뛰는 용도다.
 
+`jandi-r2s-mode5-check`는 완료된 valid raw run과 campaign의 고정된
+`execution_order`/`randomization_seed`를 비교해 `NEXT STATIC`과 `NEXT COLLECT`를 표시한다.
+실행 요청이 NEXT와 다르면 기본 차단한다. 불가피한 경우에만
+`--override-order --override-reason "사유"`를 함께 쓰며 사유는 raw metadata에 남는다.
+
 ## 7.2 사용자가 실측·확정해야 하는 값
 
 다음 값은 legacy 설정이나 추정값으로 자동 대체하지 않는다.
@@ -757,16 +762,18 @@ uv run jandi-r2s-mode5-collect \
    - Drive Mode와 실제 Position P/D
    - Goal Current와 Current Limit read-back
    - Goal PWM과 PWM Limit read-back
+   - Bus Watchdog raw (20 ms/count, 1..127; null이면 실행 잠금)
 3. Bench geometry (`configs/mode5/bench/geometry.yaml`)
    - 축 중심부터 추 질량중심까지의 L1, L2
    - 추를 제외한 막대·허브·체결부 전체 질량
    - 그 assembly의 COM 반경과 회전축 기준 관성 또는 COM 기준 관성
-   - 관절축, 기구 영점, 중력 토크 및 MuJoCo 양의 방향 정의
+   - 물리 fixture 축 설명, 기구 영점, 중력 토크 및 MuJoCo 양의 방향 정의
+   - simulation hinge는 항상 canonical `[0, 1, 0]`; fixture 차이는 1-DOF 부호/영점 mapping으로 처리
 4. Loads (`configs/mode5/bench/loads.yaml`)
    - 250/500/750 g 추 각각의 실제 측정 질량
 5. Safety and pilot (`configs/mode5/safety.yaml`)
    - software 각도 범위, 온도·전압·전류·PWM·속도·오차 한계
-   - transition/between-run 시간, warm-up 절차
+   - transition/between-run 시간, warm-up 절차와 사람이 기록한 acknowledgment timestamp
    - pilot 시험 조건과 통과 승인
 6. Trajectories (`configs/mode5/trajectories/*.yaml`)
    - static 각도/접근 offset/settling/averaging 조건
@@ -804,6 +811,10 @@ State telemetry              : ~100 Hz target
 
 실제 rate는 로그에서 계산하며 정확히 100 Hz라고 가정하지 않는다.
 
+`measured_command_rate_hz`는 실제 `command_tx_after_ns` event series로,
+`measured_state_rate_hz`는 state RX series로 각각 계산한다. 두 interval의 mean/std/max와
+deadline overrun count/max도 metadata에 별도로 저장한다.
+
 모든 sample에 host monotonic time을 저장한다.
 
 ## 8.3 Delay measurement rate
@@ -812,6 +823,13 @@ Delay 측정 정확도는 telemetry sampling period보다 좋아질 수 없다.
 
 가능하면 single-motor bench에서 안정적으로 지원되는 더 높은 telemetry rate를
 delay experiment에 사용할 수 있도록 구현하되, **main 100 Hz experiment와 분리한다.**
+
+Delay loop는 Goal Position이 바뀌는 event에서만 Protocol 2.0 GroupSyncWrite의
+Tx-only path를 호출하고, 사이에는 state만 polling한다. `command_tx_before_ns`와
+`command_tx_after_ns`는 각각 `txPacket()` 직전/직후 host monotonic time이며 Status Packet을
+기다린 시각이 아니다. 측정값은 firmware pure delay가 아니라
+**host-command-to-observed-current effective delay**다. 요청 rate와 별도로 실제 state
+interval에서 achieved telemetry rate와 sampling resolution을 기록한다.
 
 고속 read가 안정적이지 않으면 100 Hz를 유지하고,
 delay uncertainty를 최소 1 sample 수준으로 명시한다.
@@ -1469,10 +1487,12 @@ repeat 3   = validation
 
 세 repeat는 **repeatability 측정**에 사용한다.
 
-## 18.3 Condition-level holdout
+## 18.3 Dynamic trajectory condition-level holdout
 
-54 run 중 **하나의 entire mechanical configuration**을
-fit 이전에 validation-only로 고정한다.
+54개 dynamic run 중 **하나의 dynamic trajectory holdout configuration**을
+fit 이전에 validation-only로 고정한다. Static calibration은 동일한 configuration을
+포함한 6개 조건 전체를 사용하므로 이를 entirely unseen mechanical configuration이라고
+부르지 않는다.
 
 예:
 
@@ -1702,7 +1722,7 @@ Configuration이 바뀌면 새 campaign ID를 사용한다.
 
 ## 22.3 Realtime Tick unwrap
 
-Realtime Tick wrap을 처리하고
+Realtime Tick은 1 ms/count, raw 0..32767, modulus 32768 기준으로 wrap을 처리하고
 host monotonic time과 함께 보존한다.
 
 두 clock을 absolute-time으로 직접 동일시하지 않는다.
@@ -2497,8 +2517,39 @@ Run 수는 pilot 후 trajectory config가 확정되면 결정한다.
 [ ] delay probe step amplitudes/repeats
 
 [ ] software safe position range
-[ ] validation holdout mechanical configuration
+[ ] dynamic trajectory holdout mechanical configuration
 ```
 
 이 값들은 실험 fixture와 pilot 결과를 바탕으로 사람이 확정한다.
 Codex가 자동으로 추정하거나 legacy 값으로 대체하지 않는다.
+
+---
+
+# 36. Canonical acquisition 세부 계약
+
+## 36.1 Tick, watchdog, 연속 state
+
+- MX-106R 2.0 Realtime Tick은 `1 ms/count`, `0..32767`, modulus `32768`로 unwrap한다.
+- 작은 역방향 jitter는 wrap으로 승격하지 않고 비단조 표본으로 남긴다.
+- Bus Watchdog는 초기화 중 0으로 clear한 뒤 Torque ON 후 설정값(1..127)을 쓰고 read-back한다.
+  timeout 뒤 goal register가 read-only가 되는 공식 동작 때문에 다음 초기화는 watchdog 0 clear부터 시작한다.
+- Hardware Error는 별도 cadence로 읽으며 매-cycle state block read를 대체하지 않는다.
+
+## 36.2 Static과 trajectory 연속성
+
+Static 각 점은 `previous target -> smooth inter-point transfer -> approach start -> controlled
+approach -> fixed settling hold -> averaging` 순서다. Transfer/settling은 regression에 넣지 않고
+averaging plateau만 velocity/position/current 안정성과 saturation 기준으로 사후 선별한다.
+accepted/rejected plateau와 사유별 count를 `static_calibration.json`에 기록한다.
+
+`slowly_raise_lower`는 center에서 lower까지, 마지막 endpoint에서 center까지 half-cosine으로
+연속 전이한다. 세 main trajectory 모두 생성 직후 전체 합성 파형의 software position 범위,
+adjacent-sample 최대 command speed, 주파수 Nyquist 조건을 검사한다.
+
+## 36.3 Static uncertainty와 진단
+
+기존 robust regression/Jacobian covariance와 함께 **whole static sweep run**을 단위로 bootstrap한다.
+repeat count/seed/condition-number warning threshold는 `configs/mode5/fit.yaml`의 명시값이며,
+Ktau/aP bootstrap standard deviation과 95% CI, regression rank/condition number를 저장한다.
+정적 residual은 `|gravity torque|`, mass, arm length, approach, angle, Present Current에 대해
+그린다. 추세가 보여도 M1 확장은 자동 수행하지 않으며 manual review로 남긴다.

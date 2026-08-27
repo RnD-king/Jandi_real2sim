@@ -74,6 +74,48 @@ def _sample(samples: list[Sample], goal: float, rate: float, phase: str) -> None
     samples.append(Sample(index, index / rate, phase, goal))
 
 
+def _smooth(samples: list[Sample], start: float, target: float, duration: float, rate: float, phase: str) -> None:
+    """Append a half-cosine transfer without an adjacent-sample step."""
+    if duration <= 0:
+        raise ValueError(f"{phase} duration은 양수여야 합니다.")
+    count = max(2, math.ceil(duration * rate))
+    for local in range(1, count + 1):
+        ratio = local / count
+        blend = 0.5 - 0.5 * math.cos(math.pi * ratio)
+        _sample(samples, start + blend * (target - start), rate, phase)
+
+
+def _validate_waveform(cfg: CanonicalCampaign, samples: list[Sample], maximum_speed: float | None) -> None:
+    if not samples:
+        raise ValueError("빈 trajectory는 허용되지 않습니다.")
+    for sample in samples:
+        cfg.rad_to_raw(sample.goal_position_rad)
+    if maximum_speed is not None:
+        if maximum_speed <= 0:
+            raise ValueError("maximum_command_speed_rad_s는 양수여야 합니다.")
+        maximum_actual = max(
+            (abs(right.goal_position_rad - left.goal_position_rad) * cfg.command_rate_hz
+             for left, right in zip(samples, samples[1:])),
+            default=0.0,
+        )
+        if maximum_actual > maximum_speed + 1e-12:
+            raise ValueError(
+                f"generated command speed {maximum_actual:.6g} rad/s가 "
+                f"configured limit {maximum_speed:.6g} rad/s를 초과합니다."
+            )
+
+
+def command_events(samples: list[Sample]) -> tuple[Sample, ...]:
+    """Return the ZOH command changes from a sampled command plan."""
+    if not samples:
+        return ()
+    events = [samples[0]]
+    for sample in samples[1:]:
+        if sample.goal_position_rad != events[-1].goal_position_rad:
+            events.append(sample)
+    return tuple(events)
+
+
 def build_pilot(cfg: CanonicalCampaign) -> list[Sample]:
     center = float(cfg.pilot["center_rad"])
     amplitude = float(cfg.pilot["amplitude_rad"])
@@ -96,9 +138,10 @@ def build_static(cfg: CanonicalCampaign, approach: str) -> list[Sample]:
     angles = [float(value) for value in spec["static_angles_rad"]]
     offset = float(spec["approach_offset_rad"])
     transition = float(spec["approach_duration_sec"])
-    settle = float(spec["settling_timeout_sec"])
+    transfer = float(spec["inter_point_transfer_duration_sec"])
+    settle = float(spec["fixed_settling_hold_sec"])
     average = float(spec["averaging_window_sec"])
-    if not angles or offset <= 0 or min(transition, settle, average, float(spec["minimum_settling_sec"])) <= 0:
+    if not angles or offset <= 0 or min(transition, transfer, settle, average, float(spec["minimum_settling_sec"])) <= 0:
         raise ValueError("static angles는 비어 있지 않고 모든 시간/offset은 양수여야 합니다.")
     sign = -1.0 if approach == "approach_positive" else 1.0
     ordered = sorted(angles, reverse=approach == "approach_negative")
@@ -108,14 +151,13 @@ def build_static(cfg: CanonicalCampaign, approach: str) -> list[Sample]:
         start = target + sign * offset
         cfg.rad_to_raw(start)
         cfg.rad_to_raw(target)
+        if result:
+            _smooth(result, result[-1].goal_position_rad, start, transfer, rate, f"point_{point}_inter_point_transfer")
         _append(result, start, float(spec["minimum_settling_sec"]), rate, f"point_{point}_approach_start")
-        count = max(1, round(transition * rate))
-        for local in range(count):
-            ratio = (local + 1) / count
-            blend = 0.5 - 0.5 * math.cos(math.pi * ratio)
-            _sample(result, start + blend * (target - start), rate, f"point_{point}_approach")
+        _smooth(result, start, target, transition, rate, f"point_{point}_approach")
         _append(result, target, settle, rate, f"point_{point}_settling")
         _append(result, target, average, rate, f"point_{point}_averaging")
+    _validate_waveform(cfg, result, float(spec["maximum_command_speed_rad_s"]))
     return result
 
 
@@ -180,16 +222,19 @@ def build_dynamic(cfg: CanonicalCampaign, name: str) -> list[Sample]:
         endpoint_hold = float(spec["endpoint_hold_sec"])
         if not low < high or speed <= 0 or cycles < 1 or endpoint_hold <= 0:
             raise ValueError("slowly raise/lower 범위·속도·cycle·hold가 유효하지 않습니다.")
+        transition = float(spec["transition_duration_sec"])
+        _smooth(result, center, low, transition, rate, "transition_center_to_lower")
         for cycle in range(cycles):
             for label, start, target in (("raise", low, high), ("lower", high, low)):
-                count = max(2, round(abs(target - start) / speed * rate))
+                count = max(2, math.ceil(abs(target - start) / speed * rate) + 1)
                 for local in range(count):
                     ratio = local / (count - 1)
                     _sample(result, start + ratio * (target - start), rate, f"cycle_{cycle}_{label}")
                 _append(result, target, endpoint_hold, rate, f"cycle_{cycle}_{label}_hold")
     else:
         raise ValueError(f"canonical main trajectory가 아닙니다: {name}")
-    for sample in result:
-        cfg.rad_to_raw(sample.goal_position_rad)
+    if result[-1].goal_position_rad != center:
+        _smooth(result, result[-1].goal_position_rad, center, float(spec["transition_duration_sec"]), rate, "transition_to_center")
     _append(result, center, center_hold, rate, "final_center")
+    _validate_waveform(cfg, result, float(spec["maximum_command_speed_rad_s"]))
     return result

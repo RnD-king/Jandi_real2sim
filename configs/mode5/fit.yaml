@@ -1,6 +1,10 @@
 schema_version: 3
 model: mode5_current_domain_m1
 physics_timestep_sec: null
+static_bootstrap:
+  repeat_count: null
+  random_seed: null
+  condition_number_warning_threshold: null
 priors:
   static_calibration_file: null
   delay_calibration_file: null

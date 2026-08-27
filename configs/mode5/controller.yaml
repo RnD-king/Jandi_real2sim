@@ -12,6 +12,8 @@ mode5_registers:
   feedforward_2nd_gain: 0
   profile_velocity: 0
   profile_acceleration: 0
+  # MX-106R(2.0) addr 98, 20 ms/count, valid enabled range 1..127.
+  bus_watchdog_raw: null
   goal_current_raw: null
   expected_current_limit_raw: null
   goal_pwm_raw: null

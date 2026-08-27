@@ -13,8 +13,9 @@ Jandi MX-106R 2.0 Mode 5 canonical 실험 계획
 2. 실험 전 기록
 --------------
 - hardware.yaml: 포트, baudrate, ID, model number, encoder zero, direction, rate.
-- controller.yaml: Drive/Operating Mode, P/I/D, FF, Profile, Goal Current/PWM과 limits.
-- bench/geometry.yaml: L1/L2, arm mass/COM/inertia, axis, gravity zero/sign 정의.
+- controller.yaml: Drive/Operating Mode, P/I/D, FF, Profile, Goal Current/PWM과 limits, Bus Watchdog.
+- bench/geometry.yaml: L1/L2, arm mass/COM/inertia, physical fixture 축 설명, gravity zero/sign 정의.
+  MuJoCo equivalent hinge axis는 항상 [0,1,0]이다.
 - bench/loads.yaml: 250/500/750 g 추의 개별 실측 질량.
 - safety.yaml: 사람이 확인한 안전 한계와 pilot 파형.
 - campaign.yaml: campaign ID, holdout 한 조건, 실행 순서와 seed.
@@ -42,27 +43,29 @@ check는 모터를 움직이지 않는다. LOCKED 항목을 실제 측정/설정
 5. Static calibration
 ---------------------
 6 configurations x 2 approach directions x 3 repeats = 정확히 36 sweep이다.
-각 sweep은 configured static angle 전부를 approach, settling, fixed averaging 순서로 측정한다.
+각 sweep은 smooth inter-point transfer, approach, fixed settling hold, averaging 순서로 측정한다.
 
   uv run jandi-r2s-mode5-static --mechanical-configuration L1_m250 \
     --approach approach_positive --repeat 1 \
     --execute --confirm CALIBRATE_MX106_MODE5
 
 한 점의 torque/current 비율을 final Ktau로 쓰지 않는다. 모든 질량/길이/각/branch를
-robust regression하여 Ktau_eff와 aP prior 및 uncertainty를 구한다.
+robust regression하여 Ktau_eff와 aP prior를 구하고 whole-sweep run bootstrap으로 uncertainty를 보강한다.
 
 6. Delay calibration
 --------------------
   uv run jandi-r2s-mode5-delay --execute --confirm CALIBRATE_DELAY_MX106_MODE5
 
-Goal Position 송신 timestamp부터 Present Current onset까지 측정한다. 기계적 position onset은
-사용하지 않으며 sampling period보다 높은 정밀도를 주장하지 않는다.
+Goal Position GroupSyncWrite Tx-only 완료 host timestamp부터 Present Current onset까지 effective
+delay를 측정한다. command event에서만 write하고 별도 고속 state polling을 허용하며, 실제 달성
+state interval보다 높은 정밀도를 주장하지 않는다. 기계적 position onset은 사용하지 않는다.
 
 7. Dynamic campaign
 -------------------
 6 configurations x 3 trajectories x 3 repeats = 정확히 54 runs이다.
 세 trajectory는 accelerated_oscillation, slow_plus_highfreq, slowly_raise_lower이다.
-repeat 1/2/3 모두 repeatability용이며 데이터 확인 전에 holdout configuration 하나를 고정한다.
+repeat 1/2/3 모두 repeatability용이며 데이터 확인 전에 dynamic trajectory holdout configuration
+하나를 고정한다. Static은 여전히 6 configuration 전체를 쓰므로 entirely unseen 조건은 아니다.
 
   uv run jandi-r2s-mode5-collect --mechanical-configuration L1_m250 \
     --trajectory accelerated_oscillation --repeat 1 \
@@ -94,7 +97,10 @@ validation 통과 전 whole-Jandi locomotion 설정을 자동 변경하지 않�
 10. 데이터 계약
 ---------------
 - raw는 overwrite하지 않는다. --resume은 기존 valid run만 건너뛴다.
-- Goal Position 100 Hz target과 연속 state block read를 사용한다.
+- Main은 Goal Position 100 Hz target과 연속 state block read를 사용한다. command/state rate는
+  각각의 timestamp series로 따로 계산하고 interval/overrun 통계를 저장한다.
+- Realtime Tick은 modulus 32768로 unwrap한다.
+- Watchdog는 Torque ON 후 활성화/read-back하며 null이면 실제 실행을 잠근다.
 - Hardware Error polling은 별도이며 state sample을 대체하지 않는다.
 - monotonic timestamp, raw/SI, unwrapped tick, saturation, voltage/temperature,
   full register readback, config hash, firmware/model, validity를 저장한다.
@@ -107,7 +113,14 @@ validation 통과 전 whole-Jandi locomotion 설정을 자동 변경하지 않�
 - controller: Drive Mode, Position P/D, Goal/Limit Current, Goal/Limit PWM read-back.
 - geometry: L1/L2, 막대·허브·체결부 질량, COM 반경, 관성 및 그 기준, 축/영점/부호.
 - loads: 250/500/750 g 추 각각의 실측 질량.
-- safety: 각도·온도·전압·전류·PWM·속도·오차 한계, transition/rest, warm-up.
+- safety: 각도·온도·전압·전류·PWM·속도·오차 한계, transition/rest, warm-up 및 acknowledgment timestamp.
 - pilot/static/delay/dynamic trajectory의 모든 null 파형 수치.
 - campaign ID, 실행 순서/seed, 데이터를 보기 전에 정한 holdout configuration.
-- fit timestep, 측정 근거 bounds/initial, seeds/evaluation budget, normalized loss 값.
+- fit timestep, 측정 근거 bounds/initial, seeds/evaluation budget, normalized loss 값,
+  static run-level bootstrap repeat/seed/condition-number threshold.
+
+12. 실행 순서
+------------
+jandi-r2s-mode5-check가 valid raw run을 기준으로 NEXT STATIC/NEXT COLLECT를 표시한다.
+실행 요청이 NEXT와 다르면 차단한다. 불가피한 순서 변경은 --override-order와 비어 있지 않은
+--override-reason을 함께 쓰며 그 사유는 metadata에 기록한다.

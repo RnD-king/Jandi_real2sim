@@ -8,6 +8,7 @@ import math
 import platform
 import subprocess
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
@@ -15,6 +16,8 @@ from typing import Iterable
 from .canonical_bus import CanonicalMode5Bus, State
 from .canonical_config import CanonicalCampaign
 from .canonical_trajectories import Sample
+from .canonical_trajectories import command_events
+from .spec import REALTIME_TICK_MODULUS
 
 
 CURRENT_A_PER_RAW = 0.00336
@@ -22,7 +25,7 @@ PWM_FRACTION_PER_RAW = 0.00113
 VELOCITY_RAD_S_PER_RAW = 0.229 * 2.0 * math.pi / 60.0
 
 TELEMETRY_FIELDS = (
-    "sample_index", "host_time_ns", "host_time_sec", "command_seq",
+    "sample_index", "host_time_ns", "host_time_sec", "command_seq", "command_event",
     "command_tx_before_ns", "command_tx_after_ns", "scheduled_time_sec", "phase",
     "goal_position_raw", "goal_position_rad", "goal_position_readback_raw",
     "goal_position_readback_rad", "realtime_tick_raw",
@@ -58,10 +61,50 @@ class TickUnwrapper:
         self.offset = 0
 
     def update(self, raw: int) -> int:
-        if self.previous is not None and raw < self.previous and self.previous - raw > 32768:
-            self.offset += 65536
+        if not 0 <= raw < REALTIME_TICK_MODULUS:
+            raise ValueError(f"Realtime Tick raw={raw}가 [0,{REALTIME_TICK_MODULUS - 1}] 밖입니다.")
+        # A real wrap is a large high-to-low jump.  Small backward changes are
+        # not silently promoted to another epoch; they remain visible as a
+        # non-monotonic sample for validity diagnostics.
+        if self.previous is not None and raw < self.previous:
+            backward = self.previous - raw
+            if backward > REALTIME_TICK_MODULUS // 2:
+                self.offset += REALTIME_TICK_MODULUS
         self.previous = raw
         return self.offset + raw
+
+
+@dataclass(frozen=True)
+class AcquisitionStats:
+    sample_count: int
+    command_tx_after_ns: tuple[int, ...]
+    state_rx_ns: tuple[int, ...]
+    overruns_ns: tuple[int, ...]
+
+
+def timing_statistics(stats: AcquisitionStats) -> dict[str, float | int]:
+    def interval(values: tuple[int, ...], prefix: str) -> dict[str, float]:
+        if len(values) < 2:
+            return {f"measured_{prefix}_rate_hz": 0.0, f"{prefix}_interval_mean_ms": 0.0,
+                    f"{prefix}_interval_std_ms": 0.0, f"{prefix}_interval_max_ms": 0.0}
+        delta = [(right - left) * 1e-6 for left, right in zip(values, values[1:])]
+        mean_ms = sum(delta) / len(delta)
+        variance = sum((value - mean_ms) ** 2 for value in delta) / len(delta)
+        return {f"measured_{prefix}_rate_hz": 1000.0 / mean_ms, f"{prefix}_interval_mean_ms": mean_ms,
+                f"{prefix}_interval_std_ms": math.sqrt(variance), f"{prefix}_interval_max_ms": max(delta)}
+
+    result: dict[str, float | int] = {"sample_count": stats.sample_count}
+    result.update(interval(stats.command_tx_after_ns, "command"))
+    result.update(interval(stats.state_rx_ns, "state"))
+    positive = [value for value in stats.overruns_ns if value > 0]
+    result["deadline_overrun_count"] = len(positive)
+    result["deadline_overrun_max_ns"] = max(positive, default=0)
+    if len(stats.state_rx_ns) >= 2:
+        intervals = [right - left for left, right in zip(stats.state_rx_ns, stats.state_rx_ns[1:])]
+        result["measured_sampling_resolution_s"] = float(sorted(intervals)[len(intervals) // 2] * 1e-9)
+    else:
+        result["measured_sampling_resolution_s"] = 0.0
+    return result
 
 
 class SafetyMonitor:
@@ -104,7 +147,8 @@ def _transition(start: float, target: float, cfg: CanonicalCampaign) -> list[Sam
     return result
 
 
-def _row(cfg: CanonicalCampaign, sample: Sample, state: State, tx0: int, tx1: int, rx: int, overrun: int, tick_ms: int) -> dict[str, object]:
+def _row(cfg: CanonicalCampaign, sample: Sample, state: State, tx0: int, tx1: int, rx: int,
+         overrun: int, tick_ms: int, command_seq: int, command_event: bool) -> dict[str, object]:
     direction = int(cfg.hardware["direction"])
     current_direction = int(cfg.hardware["current_direction"])
     pwm_direction = int(cfg.hardware["pwm_direction"])
@@ -112,7 +156,8 @@ def _row(cfg: CanonicalCampaign, sample: Sample, state: State, tx0: int, tx1: in
     pwm_cap_raw = min(abs(int(cfg.registers["goal_pwm_raw"])), int(cfg.registers["expected_pwm_limit_raw"]))
     return {
         "sample_index": sample.sample_index, "host_time_ns": rx, "host_time_sec": f"{rx * 1e-9:.9f}",
-        "command_seq": sample.sample_index, "command_tx_before_ns": tx0, "command_tx_after_ns": tx1,
+        "command_seq": command_seq, "command_event": int(command_event),
+        "command_tx_before_ns": tx0, "command_tx_after_ns": tx1,
         "scheduled_time_sec": f"{sample.scheduled_time_sec:.9f}", "phase": sample.phase,
         "goal_position_raw": cfg.rad_to_raw(sample.goal_position_rad), "goal_position_rad": f"{sample.goal_position_rad:.9f}",
         "goal_position_readback_raw": state.goal_position_raw,
@@ -137,42 +182,104 @@ def _row(cfg: CanonicalCampaign, sample: Sample, state: State, tx0: int, tx1: in
     }
 
 
-def _run_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: Iterable[Sample], writer: csv.DictWriter | None, safety_writer: csv.DictWriter | None) -> tuple[int, int, int]:
+def _poll_error(bus: CanonicalMode5Bus, writer: csv.DictWriter | None) -> None:
+    poll_start = time.monotonic_ns()
+    error = bus.read_hardware_error()
+    poll_end = time.monotonic_ns()
+    if writer is not None:
+        writer.writerow({"host_time_ns": poll_end, "poll_start_ns": poll_start, "hardware_error_raw": error})
+    if error:
+        raise RuntimeError(f"Hardware Error Status={error}")
+
+
+def _run_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: Iterable[Sample], writer: csv.DictWriter | None, safety_writer: csv.DictWriter | None) -> AcquisitionStats:
     period_ns = round(1e9 / cfg.command_rate_hz)
     error_period_ns = round(1e9 / float(cfg.timing["hardware_error_poll_rate_hz"]))
     next_error_poll = time.monotonic_ns()
     start = time.monotonic_ns()
     unwrap = TickUnwrapper()
     monitor = SafetyMonitor(cfg)
-    first_rx = last_rx = 0
-    count = 0
+    command_times: list[int] = []
+    state_times: list[int] = []
+    overruns: list[int] = []
     for sample in samples:
         deadline = start + sample.sample_index * period_ns
         remaining = deadline - time.monotonic_ns()
         if remaining > 0:
             time.sleep(remaining * 1e-9)
         tx0 = time.monotonic_ns()
-        bus.write_goal_rad(sample.goal_position_rad)
+        bus.write_goal_rad_no_response(sample.goal_position_rad)
         tx1 = time.monotonic_ns()
         state = bus.read_state()  # every cycle; Hardware Error never replaces this sample
         rx = time.monotonic_ns()
-        overrun = max(0, rx - (deadline + period_ns))
+        if rx >= next_error_poll:
+            _poll_error(bus, safety_writer)
+            next_error_poll = rx + error_period_ns
+        # Include the separate Hardware Error poll in deadline accounting even
+        # though the state RX timestamp itself remains the state-read timestamp.
+        overrun = max(0, time.monotonic_ns() - (deadline + period_ns))
         monitor.check(state, sample.goal_position_rad, overrun)
         if writer is not None:
-            writer.writerow(_row(cfg, sample, state, tx0, tx1, rx, overrun, unwrap.update(state.realtime_tick_raw)))
+            writer.writerow(_row(cfg, sample, state, tx0, tx1, rx, overrun,
+                                 unwrap.update(state.realtime_tick_raw), sample.sample_index, True))
+        command_times.append(tx1)
+        state_times.append(rx)
+        overruns.append(overrun)
+    return AcquisitionStats(len(state_times), tuple(command_times), tuple(state_times), tuple(overruns))
+
+
+def _run_delay_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: list[Sample],
+                       writer: csv.DictWriter, safety_writer: csv.DictWriter) -> AcquisitionStats:
+    """Poll state at the delay rate and transmit only ZOH command events."""
+    telemetry_rate = float(cfg.timing.get("delay_telemetry_target_rate_hz") or cfg.command_rate_hz)
+    period_ns = round(1e9 / telemetry_rate)
+    error_period_ns = round(1e9 / float(cfg.timing["hardware_error_poll_rate_hz"]))
+    events = command_events(samples)
+    if not events:
+        raise ValueError("delay command event가 없습니다.")
+    duration_sec = samples[-1].scheduled_time_sec + 1.0 / cfg.command_rate_hz
+    telemetry_count = max(1, math.ceil(duration_sec * telemetry_rate))
+    start = time.monotonic_ns()
+    next_error_poll = start
+    event_index = -1
+    command_seq = -1
+    last_tx0 = last_tx1 = start
+    current_goal = events[0].goal_position_rad
+    command_times: list[int] = []
+    state_times: list[int] = []
+    overruns: list[int] = []
+    unwrap = TickUnwrapper()
+    monitor = SafetyMonitor(cfg)
+    for sample_index in range(telemetry_count):
+        scheduled_sec = sample_index / telemetry_rate
+        deadline = start + sample_index * period_ns
+        remaining = deadline - time.monotonic_ns()
+        if remaining > 0:
+            time.sleep(remaining * 1e-9)
+        command_event = False
+        while event_index + 1 < len(events) and events[event_index + 1].scheduled_time_sec <= scheduled_sec + 1e-12:
+            event_index += 1
+            command_seq += 1
+            current_goal = events[event_index].goal_position_rad
+            last_tx0 = time.monotonic_ns()
+            bus.write_goal_rad_no_response(current_goal)
+            last_tx1 = time.monotonic_ns()
+            command_times.append(last_tx1)
+            command_event = True
+        state = bus.read_state()
+        rx = time.monotonic_ns()
         if rx >= next_error_poll:
-            poll_start = time.monotonic_ns()
-            error = bus.read_hardware_error()
-            poll_end = time.monotonic_ns()
-            if safety_writer is not None:
-                safety_writer.writerow({"host_time_ns": poll_end, "poll_start_ns": poll_start, "hardware_error_raw": error})
-            if error:
-                raise RuntimeError(f"Hardware Error Status={error}")
+            _poll_error(bus, safety_writer)
             next_error_poll = rx + error_period_ns
-        first_rx = rx if count == 0 else first_rx
-        last_rx = rx
-        count += 1
-    return count, first_rx, last_rx
+        overrun = max(0, time.monotonic_ns() - (deadline + period_ns))
+        monitor.check(state, current_goal, overrun)
+        phase = events[max(0, event_index)].phase
+        sample = Sample(sample_index, scheduled_sec, phase, current_goal)
+        writer.writerow(_row(cfg, sample, state, last_tx0, last_tx1, rx, overrun,
+                             unwrap.update(state.realtime_tick_raw), command_seq, command_event))
+        state_times.append(rx)
+        overruns.append(overrun)
+    return AcquisitionStats(len(state_times), tuple(command_times), tuple(state_times), tuple(overruns))
 
 
 def run_directory(cfg: CanonicalCampaign, relative: str) -> Path:
@@ -181,7 +288,9 @@ def run_directory(cfg: CanonicalCampaign, relative: str) -> Path:
     return cfg.output_root / cfg.campaign_id / relative
 
 
-def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanical_configuration: str, trajectory: str, repeat: int, samples: list[Sample]) -> Path:
+def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanical_configuration: str,
+                trajectory: str, repeat: int, samples: list[Sample],
+                order_override_reason: str | None = None) -> Path:
     missing = cfg.execution_missing(experiment)
     if missing:
         raise RuntimeError("실기체 실행 전 미확정 항목:\n" + "\n".join(f"- {item}" for item in missing))
@@ -192,7 +301,14 @@ def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanic
         "campaign_id": cfg.campaign_id, "experiment": experiment,
         "relative_path": relative,
         "mechanical_configuration": mechanical_configuration, "trajectory": trajectory,
-        "repeat": repeat, "split_role": "validation" if mechanical_configuration == cfg.holdout_configuration else "fit",
+        "repeat": repeat,
+        "split_role": (
+            "static_calibration" if experiment == "static" else
+            "delay_calibration" if experiment == "delay" else
+            "validation" if experiment == "collect" and mechanical_configuration == cfg.holdout_configuration else
+            "fit" if experiment == "collect" else "pilot"
+        ),
+        "execution_order_override_reason": order_override_reason,
         "started_at": datetime.now().astimezone().isoformat(), "config_manifest": cfg.config_manifest(),
         "resolved": {"hardware": cfg.hardware, "timing": cfg.timing, "controller": cfg.registers,
                      "safety": cfg.safety, "geometry": cfg.geometry, "loads": cfg.loads,
@@ -207,7 +323,6 @@ def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanic
             if model_number != int(cfg.hardware["expected_model_number"]):
                 raise RuntimeError(f"model number 불일치: expected={cfg.hardware['expected_model_number']}, actual={model_number}")
             bus.configure_and_verify()
-            readback = bus.read_configuration_snapshot()
             firmware = bus.read("firmware_version")
             initial = bus.read_state()
             q_initial = cfg.raw_to_rad(initial.present_position_raw)
@@ -215,6 +330,8 @@ def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanic
             bus.write_goal_rad(q_initial)
             bus.torque(True)
             try:
+                bus.arm_bus_watchdog()
+                readback = bus.read_configuration_snapshot()
                 _run_samples(bus, cfg, _transition(q_initial, target_initial, cfg), None, None)
                 start_state = bus.read_state()
                 with (target / "telemetry.csv").open("x", newline="") as stream, (target / "safety_events.csv").open("x", newline="") as safety_stream:
@@ -222,16 +339,24 @@ def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanic
                     writer.writeheader()
                     safety_writer = csv.DictWriter(safety_stream, fieldnames=("host_time_ns", "poll_start_ns", "hardware_error_raw"))
                     safety_writer.writeheader()
-                    count, first_rx, last_rx = _run_samples(bus, cfg, samples, writer, safety_writer)
+                    if experiment == "delay":
+                        stats = _run_delay_samples(bus, cfg, samples, writer, safety_writer)
+                    else:
+                        stats = _run_samples(bus, cfg, samples, writer, safety_writer)
                 end_state = bus.read_state()
             finally:
                 bus.torque(False)
             metadata.update({
                 "model_number": model_number, "firmware_version": firmware, "register_readback": readback,
-                "sample_count": count, "temperature_start_C": start_state.temperature_c,
+                **timing_statistics(stats), "temperature_start_C": start_state.temperature_c,
                 "temperature_end_C": end_state.temperature_c,
-                "measured_state_rate_hz": (count - 1) / ((last_rx - first_rx) * 1e-9) if count > 1 else 0.0,
-                "measured_command_rate_hz": (count - 1) / ((last_rx - first_rx) * 1e-9) if count > 1 else 0.0,
+                "timestamp_contract": {
+                    "command_tx_before_ns": "host monotonic time immediately before GroupSyncWrite.txPacket",
+                    "command_tx_after_ns": "host monotonic time immediately after syncWriteTxOnly returns; no Status Packet awaited",
+                    "host_time_ns": "host monotonic time immediately after state GroupSyncRead returns",
+                },
+                "warmup_procedure": cfg.safety["warmup_procedure"],
+                "warmup_acknowledged_at": cfg.approval.get("warmup_acknowledged_at"),
             })
     except BaseException as exc:
         metadata["invalid_reason"] = repr(exc)

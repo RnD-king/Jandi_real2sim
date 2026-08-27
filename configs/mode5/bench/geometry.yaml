@@ -5,7 +5,9 @@ arm_com_radius_m: null
 arm_inertia_kg_m2: null
 arm_inertia_reference: null  # about_com 또는 about_pivot
 gravity_m_s2: 9.80665
-joint_axis_xyz: null
+# MuJoCo canonical hinge는 항상 [0, 1, 0]. 아래 값은 물리 fixture 기록용이며
+# simulation axis parameter로 사용하지 않는다.
+physical_fixture_axis_description: null
 gravity_zero_angle_rad: null
 gravity_torque_sign: null
 coordinate:
