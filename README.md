@@ -356,15 +356,14 @@ Known mass
 
 팔 길이는 2개를 사용한다.
 
+이번 canonical campaign에서 축 중심부터 추 질량중심까지의 길이는 다음으로 확정한다.
+
 ```text
-L1 = REQUIRED
-L2 = REQUIRED
+L1 = 0.10 m
+L2 = 0.15 m
 ```
 
-아직 실제 길이가 확정되지 않았으므로 configuration에서 `null`로 두고,
-실기 campaign 실행 전에 반드시 입력한다.
-
-Codex는 L1/L2를 임의 생성하지 않는다.
+GUI와 backend는 이 값을 독립적으로 복제하지 않고 `bench/geometry.yaml`을 읽는다.
 
 ## 4.4 막대 자체 물성
 
@@ -475,8 +474,6 @@ Gravity torque는 `r`에 비례하지만 load inertia는 `r^2`에 비례하므�
 - Goal Current
 - Current Limit
 - Goal PWM / PWM Limit
-- L1
-- L2
 - actual load masses
 - arm mass
 - arm COM
@@ -596,8 +593,8 @@ configs/mode5/
 
 ```yaml
 arm_lengths_m:
-  L1: null
-  L2: null
+  L1: 0.10
+  L2: 0.15
 
 arm_mass_kg: null
 arm_com_radius_m: null
@@ -764,7 +761,7 @@ uv run jandi-r2s-mode5-collect \
    - Goal PWM과 PWM Limit read-back
    - Bus Watchdog raw (20 ms/count, 1..127; null이면 실행 잠금)
 3. Bench geometry (`configs/mode5/bench/geometry.yaml`)
-   - 축 중심부터 추 질량중심까지의 L1, L2
+   - L1/L2는 각각 0.10/0.15 m로 고정; 실제 fixture가 일치하는지 확인
    - 추를 제외한 막대·허브·체결부 전체 질량
    - 그 assembly의 COM 반경과 회전축 기준 관성 또는 COM 기준 관성
    - 물리 fixture 축 설명, 기구 영점, 중력 토크 및 MuJoCo 양의 방향 정의
@@ -776,7 +773,7 @@ uv run jandi-r2s-mode5-collect \
    - transition/between-run 시간, warm-up 절차와 사람이 기록한 acknowledgment timestamp
    - pilot 시험 조건과 통과 승인
 6. Trajectories (`configs/mode5/trajectories/*.yaml`)
-   - static 각도/접근 offset/settling/averaging 조건
+   - static 각도는 고정; 접근 offset/settling/averaging 조건
    - delay step 진폭·반복·onset 검출 조건
    - 세 본실험 파형의 중심각·진폭·주파수·속도·시간
 7. Campaign and fit
@@ -919,7 +916,7 @@ SI value만 저장하고 raw를 버리지 않는다.
 - resolved configuration
 - DYNAMIXEL read-back registers
 - motor ID/model/firmware if available
-- L1/L2 actual length
+- canonical L1/L2 selected length and physical confirmation
 - load nominal/measured mass
 - arm properties
 - trajectory parameters
@@ -1060,13 +1057,13 @@ L2 + 750 g
 
 ## 12.3 Static angle set
 
-Static angle set은 아직 미확정이다.
+Static angle set은 본 Mode-5 static calibration 설계로 다음 다섯 점을 고정한다.
 
 ```yaml
-static_angles_rad: null
+static_angles_rad: [-1.0471975512, -0.5235987756, 0.0, 0.5235987756, 1.0471975512]
 ```
 
-Codex는 임의 angle set을 넣지 않는다.
+이는 각각 `-60, -30, 0, +30, +60 degree`이며 BAM/논문의 값을 복사한 것이 아니다.
 
 Angle selection은 다음 조건을 만족해야 한다.
 
@@ -1101,7 +1098,7 @@ Canonical static sweep repeat:
 6 mechanical configurations x 2 approach directions x 3 repeats이면
 **36 static sweep runs**가 된다.
 
-단 실제 angle point 수는 `static_angles_rad`가 확정된 뒤 결정된다.
+각 sweep은 위 다섯 angle point를 모두 포함한다.
 
 ## 12.6 Settling과 averaging
 
@@ -2209,10 +2206,7 @@ Codex가 이 README를 기준으로 프로젝트를 수정할 때 다음 원칙�
 
 다음 미확정값을 추측하지 않는다.
 
-- L1
-- L2
 - actual arm mass/COM/inertia
-- static angle set
 - dynamic trajectory amplitudes
 - dynamic trajectory frequencies
 - slow raise/lower speed
@@ -2491,8 +2485,8 @@ Run 수는 pilot 후 trajectory config가 확정되면 결정한다.
 아래 항목이 확정되기 전에는 본 hardware campaign을 실행하지 않는다.
 
 ```text
-[ ] L1 actual length
-[ ] L2 actual length
+[x] L1 = 0.10 m
+[x] L2 = 0.15 m
 [ ] arm mass
 [ ] arm COM
 [ ] arm inertia
@@ -2507,7 +2501,7 @@ Run 수는 pilot 후 trajectory config가 확정되면 결정한다.
 [ ] Goal PWM
 [ ] PWM Limit
 
-[ ] static angle set
+[x] static angle set = -60/-30/0/+30/+60 deg
 [ ] static settling/dwell thresholds
 
 [ ] accelerated oscillation parameters
@@ -2553,3 +2547,73 @@ repeat count/seed/condition-number warning threshold는 `configs/mode5/fit.yaml`
 Ktau/aP bootstrap standard deviation과 95% CI, regression rank/condition number를 저장한다.
 정적 residual은 `|gravity torque|`, mass, arm length, approach, angle, Present Current에 대해
 그린다. 추세가 보여도 M1 확장은 자동 수행하지 않으며 manual review로 남긴다.
+
+---
+
+# 37. Desktop GUI, immutable retries, and fit diagnostics
+
+## 37.1 GUI 실행
+
+GUI는 canonical YAML과 backend를 감싸는 인터페이스이며, 별도 실험 상수를 갖지 않는다.
+GUI를 띄우는 것만으로 serial port를 열거나 모터를 움직이지 않는다.
+
+```bash
+# 실제 장치용. Connect 전에는 port를 열지 않는다.
+uv run jandi-r2s-mode5-gui
+
+# 하드웨어 없는 명시적 mock. 실제 backend로 자동 fallback하지 않는다.
+QT_QPA_PLATFORM=xcb uv run jandi-r2s-mode5-gui --mock
+```
+
+`PREVIEW`는 port 없이 canonical trajectory를 생성해 Goal Position, duration, sample count,
+범위와 최대 discrete speed를 표시한다. Static 36개와 Dynamic 54개 logical run의 상태는
+`NOT_RUN`, `VALID`, `INVALID`, `MULTIPLE_VALID_ATTEMPTS`로 구분한다. Canonical RUN 전에
+선택한 L1/L2, nominal/measured mass와 실제 fixture가 일치한다는
+`PHYSICAL SETUP CONFIRMATION`이 필요하며 그 시각과 setup을 metadata에 기록한다.
+
+GUI의 빨간 `TORQUE OFF`는 항상 보인다. 이는 worker에 즉시 중단 요청을 보내고 active run을
+invalid/operator-abort로 남기지만, 물리 비상 전원 차단 장치를 대체하지 않는다. CLI는
+low-level/debug/reproducibility 인터페이스로 계속 유지한다.
+
+Manual Test는 `MANUAL TEST — NOT PART OF CANONICAL DATASET`으로 구분한다. Mock manual telemetry는
+저장하지 않으며, 실제 manual telemetry도 canonical 경로가 아닌 `data/temp/manual/` 아래에만
+immutable attempt로 저장한다. Manual의 center/amplitude/frequency/duration은 명시적 per-run
+override metadata/trajectory로만 사용되며 canonical static/dynamic YAML을 바꾸지 않는다.
+
+## 37.2 Immutable attempt 구조
+
+Logical run은 다음과 같이 immutable attempt를 가진다.
+
+```text
+dynamic/L1_m250/accelerated_oscillation/repeat_1/
+├── attempt_001/   # invalid 또는 valid; 절대 overwrite하지 않음
+└── attempt_002/   # retry
+```
+
+hard crash로 metadata가 없는 incomplete attempt가 남아도 다음 번호로 retry한다. 각 metadata에는
+`logical_run_id`, `attempt_index`, `retry_of`, `valid_flag`, `invalid_reason`을 저장한다. Valid가
+정확히 하나면 자동 선택한다. 둘 이상이면 최신값을 몰래 고르지 않고 logical directory의
+`selected_attempt.txt`에 `attempt_NNN`을 명시해야 분석한다. 기존 attempt 도입 전 raw directory는
+읽기 호환한다.
+
+```bash
+uv run jandi-r2s-mode5-select-attempt \
+  --logical-run dynamic/L1_m250/accelerated_oscillation/repeat_1 \
+  --attempt attempt_002
+```
+
+## 37.3 Stage-D saturation 정책
+
+Canonical M1은 current clipping은 모델링하지만 PWM/voltage/back-EMF 한계 전체는 모델링하지 않는다.
+따라서 primary Stage-D loss에서는 `pwm_saturated` 표본을 제외한다. Current-saturated 표본은 current
+clip model의 유효성 범위에 포함하되 flag를 보존한다. `fit_validity_region.json`에는 total, normal,
+current-saturated, PWM-saturated, primary-excluded 표본 수를 기록한다. Validation/report의 full behavior
+metric은 포화 표본을 버리지 않는다.
+
+## 37.4 Repeatability 명칭 계약
+
+- `model_error_repeat_variation`: 같은 조건의 repeat별 simulation RMSE 변동
+- `real_to_real_repeatability`: 실제 repeat 1/2/3을 run-local host time으로 보간 정렬한 뒤 계산한
+  r1-r2, r1-r3, r2-r3의 position/velocity/current RMSE
+
+둘은 각각 residual summary와 `real_to_real_repeatability.json`에 분리해 저장한다.

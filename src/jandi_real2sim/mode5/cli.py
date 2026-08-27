@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from .canonical_acquisition import collect_run, run_directory
+from .canonical_attempts import inspect_logical_run, write_attempt_selection
 from .canonical_config import CanonicalCampaign, load_canonical_campaign
 from .canonical_trajectories import (
     build_delay, build_dynamic, build_pilot, build_static,
@@ -53,11 +54,8 @@ def _print_missing(cfg: CanonicalCampaign, kind: str) -> bool:
 
 
 def _existing_valid(path: Path) -> bool:
-    metadata = path / "metadata.json"
-    if not metadata.is_file():
-        return False
     try:
-        return bool(json.loads(metadata.read_text()).get("valid_flag"))
+        return inspect_logical_run(path).selected_attempt is not None
     except (OSError, ValueError):
         return False
 
@@ -83,12 +81,10 @@ def _execute_one(cfg: CanonicalCampaign, args: argparse.Namespace, kind: str, re
     if not args.execute:
         print(f"PLAN {relative}: {len(samples)} samples, {len(samples) / cfg.command_rate_hz:.2f} s")
         return
-    target = run_directory(cfg, relative)
-    if target.exists():
-        if args.resume and _existing_valid(target):
-            print(f"SKIP valid raw run: {target}")
-            return
-        raise FileExistsError(f"raw run을 overwrite하지 않습니다: {target}")
+    logical = run_directory(cfg, relative)
+    if args.resume and _existing_valid(logical):
+        print(f"SKIP valid logical run: {logical}")
+        return
     override_reason = _enforce_order(cfg, args, kind, relative) if kind in ("static", "collect") else None
     print(collect_run(cfg, kind, relative, mechanical, trajectory, repeat, samples, override_reason))
 
@@ -214,3 +210,18 @@ def report_main() -> None:
     parser.add_argument("--result", type=Path, required=True)
     args = parser.parse_args()
     print(report(_load(args), args.result))
+
+
+def select_attempt_main() -> None:
+    parser = _base("multiple valid logical run에서 분석에 사용할 immutable attempt 명시")
+    parser.add_argument("--logical-run", required=True, help="campaign root 기준 logical path")
+    parser.add_argument("--attempt", required=True, help="attempt_NNN 또는 legacy raw의 경우 .")
+    args = parser.parse_args()
+    cfg = _load(args)
+    if cfg.campaign_id is None:
+        raise SystemExit("campaign.id가 필요합니다.")
+    root = (cfg.output_root / cfg.campaign_id).resolve()
+    logical = (root / args.logical_run).resolve()
+    if logical != root and root not in logical.parents:
+        raise SystemExit("logical run은 현재 campaign root 안이어야 합니다.")
+    print(write_attempt_selection(logical, args.attempt))

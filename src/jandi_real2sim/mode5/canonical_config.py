@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -262,6 +263,14 @@ def _validate_structure(cfg: CanonicalCampaign, raw: dict[str, Any], safety_raw:
             raise ValueError(f"{name}은 canonical controller에서 0이어야 합니다.")
     if float(cfg.timing.get("command_rate_hz", 0)) != 100.0:
         raise ValueError("main Goal Position command target는 100 Hz입니다.")
+    if cfg.campaign_id is not None and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", cfg.campaign_id) is None:
+        raise ValueError("campaign.id는 경로 구분자 없는 영문/숫자/._- 이름이어야 합니다.")
+    if cfg.geometry.get("arm_lengths_m") != {"L1": 0.10, "L2": 0.15}:
+        raise ValueError("canonical arm lengths는 정확히 L1=0.10 m, L2=0.15 m여야 합니다.")
+    if cfg.trajectories["static_calibration"].get("static_angles_rad") != [
+        -1.0471975512, -0.5235987756, 0.0, 0.5235987756, 1.0471975512,
+    ]:
+        raise ValueError("canonical static angle set은 정확히 -60,-30,0,+30,+60 deg여야 합니다.")
     if cfg.holdout_configuration is not None and cfg.holdout_configuration not in ids:
         raise ValueError("holdout_configuration이 six mechanical configurations에 없습니다.")
     for name in ("direction", "current_direction", "pwm_direction"):

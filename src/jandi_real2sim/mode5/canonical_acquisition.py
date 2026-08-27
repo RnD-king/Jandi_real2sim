@@ -11,9 +11,10 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 from .canonical_bus import CanonicalMode5Bus, State
+from .canonical_attempts import allocate_attempt
 from .canonical_config import CanonicalCampaign
 from .canonical_trajectories import Sample
 from .canonical_trajectories import command_events
@@ -72,6 +73,10 @@ class TickUnwrapper:
                 self.offset += REALTIME_TICK_MODULUS
         self.previous = raw
         return self.offset + raw
+
+
+class OperatorAbort(RuntimeError):
+    """Raised at an acquisition-cycle boundary after a GUI/CLI abort request."""
 
 
 @dataclass(frozen=True)
@@ -192,7 +197,9 @@ def _poll_error(bus: CanonicalMode5Bus, writer: csv.DictWriter | None) -> None:
         raise RuntimeError(f"Hardware Error Status={error}")
 
 
-def _run_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: Iterable[Sample], writer: csv.DictWriter | None, safety_writer: csv.DictWriter | None) -> AcquisitionStats:
+def _run_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: Iterable[Sample], writer: csv.DictWriter | None, safety_writer: csv.DictWriter | None,
+                 telemetry_callback: Callable[[dict[str, object]], None] | None = None,
+                 abort_requested: Callable[[], bool] | None = None) -> AcquisitionStats:
     period_ns = round(1e9 / cfg.command_rate_hz)
     error_period_ns = round(1e9 / float(cfg.timing["hardware_error_poll_rate_hz"]))
     next_error_poll = time.monotonic_ns()
@@ -203,6 +210,8 @@ def _run_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: Iterab
     state_times: list[int] = []
     overruns: list[int] = []
     for sample in samples:
+        if abort_requested is not None and abort_requested():
+            raise OperatorAbort("operator_abort")
         deadline = start + sample.sample_index * period_ns
         remaining = deadline - time.monotonic_ns()
         if remaining > 0:
@@ -219,9 +228,12 @@ def _run_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: Iterab
         # though the state RX timestamp itself remains the state-read timestamp.
         overrun = max(0, time.monotonic_ns() - (deadline + period_ns))
         monitor.check(state, sample.goal_position_rad, overrun)
+        row = _row(cfg, sample, state, tx0, tx1, rx, overrun,
+                   unwrap.update(state.realtime_tick_raw), sample.sample_index, True)
         if writer is not None:
-            writer.writerow(_row(cfg, sample, state, tx0, tx1, rx, overrun,
-                                 unwrap.update(state.realtime_tick_raw), sample.sample_index, True))
+            writer.writerow(row)
+        if telemetry_callback is not None:
+            telemetry_callback(row)
         command_times.append(tx1)
         state_times.append(rx)
         overruns.append(overrun)
@@ -229,7 +241,9 @@ def _run_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: Iterab
 
 
 def _run_delay_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: list[Sample],
-                       writer: csv.DictWriter, safety_writer: csv.DictWriter) -> AcquisitionStats:
+                       writer: csv.DictWriter, safety_writer: csv.DictWriter,
+                       telemetry_callback: Callable[[dict[str, object]], None] | None = None,
+                       abort_requested: Callable[[], bool] | None = None) -> AcquisitionStats:
     """Poll state at the delay rate and transmit only ZOH command events."""
     telemetry_rate = float(cfg.timing.get("delay_telemetry_target_rate_hz") or cfg.command_rate_hz)
     period_ns = round(1e9 / telemetry_rate)
@@ -251,6 +265,8 @@ def _run_delay_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: 
     unwrap = TickUnwrapper()
     monitor = SafetyMonitor(cfg)
     for sample_index in range(telemetry_count):
+        if abort_requested is not None and abort_requested():
+            raise OperatorAbort("operator_abort")
         scheduled_sec = sample_index / telemetry_rate
         deadline = start + sample_index * period_ns
         remaining = deadline - time.monotonic_ns()
@@ -275,8 +291,11 @@ def _run_delay_samples(bus: CanonicalMode5Bus, cfg: CanonicalCampaign, samples: 
         monitor.check(state, current_goal, overrun)
         phase = events[max(0, event_index)].phase
         sample = Sample(sample_index, scheduled_sec, phase, current_goal)
-        writer.writerow(_row(cfg, sample, state, last_tx0, last_tx1, rx, overrun,
-                             unwrap.update(state.realtime_tick_raw), command_seq, command_event))
+        row = _row(cfg, sample, state, last_tx0, last_tx1, rx, overrun,
+                   unwrap.update(state.realtime_tick_raw), command_seq, command_event)
+        writer.writerow(row)
+        if telemetry_callback is not None:
+            telemetry_callback(row)
         state_times.append(rx)
         overruns.append(overrun)
     return AcquisitionStats(len(state_times), tuple(command_times), tuple(state_times), tuple(overruns))
@@ -290,35 +309,45 @@ def run_directory(cfg: CanonicalCampaign, relative: str) -> Path:
 
 def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanical_configuration: str,
                 trajectory: str, repeat: int, samples: list[Sample],
-                order_override_reason: str | None = None) -> Path:
-    missing = cfg.execution_missing(experiment)
+                order_override_reason: str | None = None,
+                physical_setup_confirmation: dict[str, object] | None = None,
+                telemetry_callback: Callable[[dict[str, object]], None] | None = None,
+                abort_requested: Callable[[], bool] | None = None,
+                bus_factory: type[CanonicalMode5Bus] = CanonicalMode5Bus,
+                per_run_override: dict[str, object] | None = None) -> Path:
+    missing = cfg.common_execution_missing() if experiment == "manual" else cfg.execution_missing(experiment)
     if missing:
         raise RuntimeError("실기체 실행 전 미확정 항목:\n" + "\n".join(f"- {item}" for item in missing))
-    target = run_directory(cfg, relative)
-    target.mkdir(parents=True, exist_ok=False)
+    logical = ((cfg.project_root / "data/temp/manual" / relative).resolve()
+               if experiment == "manual" else run_directory(cfg, relative))
+    target, attempt_index, retry_of = allocate_attempt(logical)
     metadata: dict[str, object] = {
         "valid_flag": False, "invalid_reason": "collection_not_completed",
         "campaign_id": cfg.campaign_id, "experiment": experiment,
-        "relative_path": relative,
+        "relative_path": relative, "logical_run_id": relative,
+        "attempt_index": attempt_index, "retry_of": retry_of,
         "mechanical_configuration": mechanical_configuration, "trajectory": trajectory,
         "repeat": repeat,
         "split_role": (
             "static_calibration" if experiment == "static" else
             "delay_calibration" if experiment == "delay" else
             "validation" if experiment == "collect" and mechanical_configuration == cfg.holdout_configuration else
-            "fit" if experiment == "collect" else "pilot"
+            "fit" if experiment == "collect" else
+            "manual_temporary" if experiment == "manual" else "pilot"
         ),
         "execution_order_override_reason": order_override_reason,
+        "physical_setup_confirmation": physical_setup_confirmation,
+        "per_run_override": per_run_override,
         "started_at": datetime.now().astimezone().isoformat(), "config_manifest": cfg.config_manifest(),
         "resolved": {"hardware": cfg.hardware, "timing": cfg.timing, "controller": cfg.registers,
                      "safety": cfg.safety, "geometry": cfg.geometry, "loads": cfg.loads,
-                     "trajectory": cfg.trajectories.get(trajectory, cfg.pilot)},
+                     "trajectory": (per_run_override if experiment == "manual" else cfg.trajectories.get(trajectory, cfg.pilot))},
         "software": {"python": platform.python_version(), "platform": platform.platform(),
                      "git_commit": _git_commit(cfg.project_root)},
     }
     metadata_path = target / "metadata.json"
     try:
-        with CanonicalMode5Bus(cfg) as bus:
+        with bus_factory(cfg) as bus:
             model_number = bus.ping()
             if model_number != int(cfg.hardware["expected_model_number"]):
                 raise RuntimeError(f"model number 불일치: expected={cfg.hardware['expected_model_number']}, actual={model_number}")
@@ -340,9 +369,11 @@ def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanic
                     safety_writer = csv.DictWriter(safety_stream, fieldnames=("host_time_ns", "poll_start_ns", "hardware_error_raw"))
                     safety_writer.writeheader()
                     if experiment == "delay":
-                        stats = _run_delay_samples(bus, cfg, samples, writer, safety_writer)
+                        stats = _run_delay_samples(bus, cfg, samples, writer, safety_writer,
+                                                   telemetry_callback, abort_requested)
                     else:
-                        stats = _run_samples(bus, cfg, samples, writer, safety_writer)
+                        stats = _run_samples(bus, cfg, samples, writer, safety_writer,
+                                             telemetry_callback, abort_requested)
                 end_state = bus.read_state()
             finally:
                 bus.torque(False)
@@ -360,6 +391,7 @@ def collect_run(cfg: CanonicalCampaign, experiment: str, relative: str, mechanic
             })
     except BaseException as exc:
         metadata["invalid_reason"] = repr(exc)
+        metadata["operator_abort"] = isinstance(exc, OperatorAbort)
         metadata["finished_at"] = datetime.now().astimezone().isoformat()
         _write_json_exclusive(metadata_path, metadata)
         raise

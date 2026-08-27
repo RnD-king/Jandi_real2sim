@@ -20,13 +20,20 @@ class CanonicalMode5ConfigTest(unittest.TestCase):
         missing = self.cfg.execution_missing("collect")
         self.assertIn("hardware.motor_id", missing)
         self.assertIn("mode5_registers.position_p_gain", missing)
-        self.assertIn("bench.geometry.arm_lengths_m.L1", missing)
+        self.assertNotIn("bench.geometry.arm_lengths_m.L1", missing)
         self.assertIn("campaign.holdout_configuration", missing)
 
     def test_exact_static_matrix(self) -> None:
         specs = static_run_specs(self.cfg)
         self.assertEqual(len(specs), STATIC_RUN_COUNT)
         self.assertEqual(STATIC_RUN_COUNT, 36)
+
+    def test_fixed_geometry_and_static_angles(self) -> None:
+        self.assertEqual(self.cfg.geometry["arm_lengths_m"], {"L1": 0.10, "L2": 0.15})
+        self.assertEqual(
+            self.cfg.trajectories["static_calibration"]["static_angles_rad"],
+            [-1.0471975512, -0.5235987756, 0.0, 0.5235987756, 1.0471975512],
+        )
 
     def test_exact_dynamic_matrix_and_repeat_roles(self) -> None:
         specs = dynamic_run_specs(self.cfg)

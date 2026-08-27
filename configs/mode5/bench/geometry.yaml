@@ -1,5 +1,5 @@
 schema_version: 3
-arm_lengths_m: {L1: null, L2: null}
+arm_lengths_m: {L1: 0.10, L2: 0.15}
 arm_mass_kg: null
 arm_com_radius_m: null
 arm_inertia_kg_m2: null

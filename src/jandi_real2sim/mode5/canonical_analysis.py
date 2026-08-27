@@ -16,6 +16,7 @@ import numpy as np
 import yaml
 from scipy.optimize import least_squares
 
+from .canonical_attempts import select_valid_attempt
 from .canonical_config import CanonicalCampaign
 from .canonical_model import replay, zoh_command
 from .canonical_trajectories import dynamic_run_specs, static_run_specs
@@ -79,10 +80,21 @@ def _require_runs(cfg: CanonicalCampaign, kind: str) -> list[Run]:
         expected = 1
     else:
         raise ValueError(kind)
-    missing = [path for path in paths if not (path / "metadata.json").is_file() or not (path / "telemetry.csv").is_file()]
+    selected: list[Path] = []
+    missing: list[Path] = []
+    for logical in paths:
+        try:
+            attempt = select_valid_attempt(logical)
+        except FileNotFoundError:
+            missing.append(logical)
+            continue
+        if not (attempt / "metadata.json").is_file() or not (attempt / "telemetry.csv").is_file():
+            missing.append(logical)
+        else:
+            selected.append(attempt)
     if missing:
         raise FileNotFoundError(f"canonical {kind} raw run 누락 ({len(missing)}/{expected}):\n" + "\n".join(map(str, missing)))
-    runs = [_load_run(path) for path in paths]
+    runs = [_load_run(path) for path in selected]
     if len(runs) != expected:
         raise AssertionError(f"{kind} run count={len(runs)}, expected={expected}")
     return runs
@@ -309,7 +321,70 @@ def _dynamic_arrays(run: Run, stride: int) -> tuple[np.ndarray, ...]:
     command_t = (c["command_tx_after_ns"][event] - c["host_time_ns"][0]) * 1e-9
     command_goal = c["goal_position_rad"][event]
     index = np.arange(0, len(t), stride)
-    return t[index], command_t, command_goal, c["present_position_rad"][index], c["present_velocity_rad_s"][index], c["present_current_A"][index]
+    return (
+        t[index], command_t, command_goal,
+        c["present_position_rad"][index], c["present_velocity_rad_s"][index],
+        c["present_current_A"][index], c["current_saturated"][index].astype(bool),
+        c["pwm_saturated"][index].astype(bool),
+    )
+
+
+def primary_fit_sample_counts(prepared: list[tuple[Run, tuple[np.ndarray, ...]]]) -> dict[str, int]:
+    """Describe Stage-D's validity region without hiding saturated diagnostics."""
+    current = np.concatenate([arrays[6] for _, arrays in prepared]).astype(bool)
+    pwm = np.concatenate([arrays[7] for _, arrays in prepared]).astype(bool)
+    return {
+        "total_sample_count": int(len(current)),
+        "normal_sample_count": int(np.count_nonzero(~current & ~pwm)),
+        "current_saturated_sample_count": int(np.count_nonzero(current)),
+        "pwm_saturated_sample_count": int(np.count_nonzero(pwm)),
+        # The current clip exists in M1.  The PWM/electrical limit does not.
+        "excluded_from_primary_fit_count": int(np.count_nonzero(pwm)),
+    }
+
+
+def real_to_real_repeatability(runs: list[Run]) -> dict[str, Any]:
+    """Time-align real repeats and compare all three pairs, independently of simulation."""
+    groups: dict[tuple[str, str], list[Run]] = {}
+    for run in runs:
+        groups.setdefault((run.mechanical, run.trajectory), []).append(run)
+    pair_rows: list[dict[str, Any]] = []
+    for (mechanical, trajectory), grouped in sorted(groups.items()):
+        by_repeat = {run.repeat: run for run in grouped}
+        for left_repeat, right_repeat in ((1, 2), (1, 3), (2, 3)):
+            if left_repeat not in by_repeat or right_repeat not in by_repeat:
+                continue
+            left, right = by_repeat[left_repeat], by_repeat[right_repeat]
+            left_t = (left.columns["host_time_ns"] - left.columns["host_time_ns"][0]) * 1e-9
+            right_t = (right.columns["host_time_ns"] - right.columns["host_time_ns"][0]) * 1e-9
+            end = min(float(left_t[-1]), float(right_t[-1]))
+            mask = left_t <= end
+            common = left_t[mask]
+            if len(common) < 2:
+                continue
+            row: dict[str, Any] = {
+                "mechanical_configuration": mechanical, "trajectory": trajectory,
+                "pair": f"r{left_repeat}-r{right_repeat}", "sample_count": int(len(common)),
+            }
+            for column, metric in (
+                ("present_position_rad", "real_repeat_position_rmse_rad"),
+                ("present_velocity_rad_s", "real_repeat_velocity_rmse_rad_s"),
+                ("present_current_A", "real_repeat_current_rmse_A"),
+            ):
+                left_value = left.columns[column][mask]
+                right_value = np.interp(common, right_t, right.columns[column])
+                row[metric] = float(np.sqrt(np.mean((left_value - right_value) ** 2)))
+            pair_rows.append(row)
+    metric_names = (
+        "real_repeat_position_rmse_rad", "real_repeat_velocity_rmse_rad_s",
+        "real_repeat_current_rmse_A",
+    )
+    means = {
+        name: float(np.mean([float(row[name]) for row in pair_rows])) if pair_rows else math.nan
+        for name in metric_names
+    }
+    return {"alignment": "run-local host_time linear interpolation onto left-repeat samples",
+            "pairs": pair_rows, "mean": means}
 
 
 def estimate_ad(prior_ap: float, delay_s: float, runs: list[Run]) -> dict[str, Any]:
@@ -335,7 +410,8 @@ def estimate_ad(prior_ap: float, delay_s: float, runs: list[Run]) -> dict[str, A
     return {"aD_initial_A_s_per_rad": float(np.median(accepted)), "per_run": values}
 
 
-def _metrics(run: Run, sim: Any, q: np.ndarray, qd: np.ndarray, current: np.ndarray) -> dict[str, Any]:
+def _metrics(run: Run, sim: Any, q: np.ndarray, qd: np.ndarray, current: np.ndarray,
+             current_saturated: np.ndarray, pwm_saturated: np.ndarray) -> dict[str, Any]:
     sampled_time = sim.time_sec
     peak_real = int(np.argmax(np.abs(qd)))
     peak_sim = int(np.argmax(np.abs(sim.qd_rad_s)))
@@ -346,6 +422,9 @@ def _metrics(run: Run, sim: Any, q: np.ndarray, qd: np.ndarray, current: np.ndar
             "velocity_mae_rad_s": float(np.mean(np.abs(sim.qd_rad_s - qd))),
             "current_mae_A": float(np.mean(np.abs(sim.current_A - current))),
             "normalized_current_mae": float(np.mean(np.abs(sim.current_A - current)) / current_cap),
+            "sample_count": int(len(q)),
+            "current_saturated_sample_count": int(np.count_nonzero(current_saturated)),
+            "pwm_saturated_sample_count": int(np.count_nonzero(pwm_saturated)),
             "peak_timing_error_sec": float(sampled_time[peak_sim] - sampled_time[peak_real]),
             "steady_state_error_rad": float(np.mean(sim.q_rad[-max(1, len(q)//10):] - q[-max(1, len(q)//10):]))}
 
@@ -372,6 +451,9 @@ def fit(cfg: CanonicalCampaign, fit_config_path: Path) -> Path:
     scales = np.asarray([float(fit_cfg["loss"]["position_scale_rad"]), float(fit_cfg["loss"]["velocity_scale_rad_s"]), float(fit_cfg["loss"]["current_scale_A"])])
     weights = fit_cfg["loss"]["weights"]
     prepared = [(run, _dynamic_arrays(run, stride)) for run in fit_runs]
+    validity = primary_fit_sample_counts(prepared)
+    if validity["total_sample_count"] == validity["excluded_from_primary_fit_count"]:
+        raise ValueError("Stage D primary fit에 사용할 non-PWM-saturated sample이 없습니다.")
 
     def parameters(x: np.ndarray) -> dict[str, float]:
         return {"aP_A_per_rad": float(static["aP_prior_A_per_rad"]), "Ktau_eff_Nm_per_A": float(static["Ktau_eff_prior_Nm_per_A"]),
@@ -380,11 +462,12 @@ def fit(cfg: CanonicalCampaign, fit_config_path: Path) -> Path:
     def simulation_residual(p: dict[str, float]) -> np.ndarray:
         parts = []
         for run, arrays in prepared:
-            t, cmd_t, cmd, q, qd, current = arrays
+            t, cmd_t, cmd, q, qd, current, _current_sat, pwm_sat = arrays
             sim = replay(cfg, run.mechanical, t, cmd_t, cmd, q[0], qd[0], p, dt)
-            parts.extend((math.sqrt(float(weights["position"])) * (sim.q_rad - q) / scales[0],
-                          math.sqrt(float(weights["velocity"])) * (sim.qd_rad_s - qd) / scales[1],
-                          math.sqrt(float(weights["current"])) * (sim.current_A - current) / scales[2]))
+            primary = ~pwm_sat
+            parts.extend((math.sqrt(float(weights["position"])) * (sim.q_rad[primary] - q[primary]) / scales[0],
+                          math.sqrt(float(weights["velocity"])) * (sim.qd_rad_s[primary] - qd[primary]) / scales[1],
+                          math.sqrt(float(weights["current"])) * (sim.current_A[primary] - current[primary]) / scales[2]))
         return np.concatenate(parts)
 
     def residual(x: np.ndarray) -> np.ndarray:
@@ -469,15 +552,22 @@ def fit(cfg: CanonicalCampaign, fit_config_path: Path) -> Path:
     }, indent=2) + "\n")
     fit_metrics = []
     for run, arrays in prepared:
-        t, cmd_t, cmd, q, qd, current = arrays
-        fit_metrics.append(_metrics(run, replay(cfg, run.mechanical, t, cmd_t, cmd, q[0], qd[0], params, dt), q, qd, current))
+        t, cmd_t, cmd, q, qd, current, current_sat, pwm_sat = arrays
+        fit_metrics.append(_metrics(run, replay(cfg, run.mechanical, t, cmd_t, cmd, q[0], qd[0], params, dt), q, qd, current, current_sat, pwm_sat))
     (output / "metrics_fit.json").write_text(json.dumps(fit_metrics, indent=2) + "\n")
+    (output / "fit_validity_region.json").write_text(json.dumps({
+        "primary_stage_d_policy": "exclude PWM-saturated samples; retain current-saturated samples because M1 models current clipping",
+        **validity,
+    }, indent=2) + "\n")
+    (output / "real_to_real_repeatability.json").write_text(
+        json.dumps(real_to_real_repeatability(dynamic), indent=2) + "\n"
+    )
     fit_path = fit_config_path.resolve()
     (output / "manifest.json").write_text(json.dumps({"config": cfg.config_manifest(),
         "fit_config": {"path": str(fit_path), "sha256": hashlib.sha256(fit_path.read_bytes()).hexdigest()},
         "holdout_configuration": cfg.holdout_configuration, "fit_runs": 45, "held_out_runs": 9,
         "holdout_scope": "dynamic trajectories only; static calibration uses all six configurations",
-        "selected_fit_stage": selected_stage}, indent=2) + "\n")
+        "selected_fit_stage": selected_stage, "primary_fit_validity": validity}, indent=2) + "\n")
     (output / "residual_summary.json").write_text(json.dumps({"status": "pending held-out validation"}, indent=2) + "\n")
     _plot_static_diagnostics(static, output / "plots")
     return output
@@ -533,8 +623,8 @@ def validate(cfg: CanonicalCampaign, result_dir: Path) -> Path:
         raise AssertionError(f"held-out run count={len(holdout)}, expected=9")
     metrics = []
     for run in holdout:
-        t, cmd_t, cmd, q, qd, current = _dynamic_arrays(run, stride)
-        metrics.append(_metrics(run, replay(cfg, run.mechanical, t, cmd_t, cmd, q[0], qd[0], params, dt), q, qd, current))
+        t, cmd_t, cmd, q, qd, current, current_sat, pwm_sat = _dynamic_arrays(run, stride)
+        metrics.append(_metrics(run, replay(cfg, run.mechanical, t, cmd_t, cmd, q[0], qd[0], params, dt), q, qd, current, current_sat, pwm_sat))
     path = target / "metrics_validation.json"
     path.write_text(json.dumps(metrics, indent=2) + "\n")
     return path
@@ -565,7 +655,7 @@ def report(cfg: CanonicalCampaign, result_dir: Path) -> Path:
         name: [] for name in ("position", "velocity", "current", "gravity", "arm_length", "direction", "pwm", "temperature", "residual")
     }
     for run in [item for item in _require_runs(cfg, "dynamic") if item.mechanical == cfg.holdout_configuration]:
-        t, cmd_t, cmd, q, qd, current = _dynamic_arrays(run, stride)
+        t, cmd_t, cmd, q, qd, current, _current_sat, _pwm_sat = _dynamic_arrays(run, stride)
         sim = replay(cfg, run.mechanical, t, cmd_t, cmd, q[0], qd[0], params, dt)
         index = np.arange(0, len(run.columns["present_pwm_fraction"]), stride)[:len(q)]
         moment = float(cfg.geometry["gravity_m_s2"]) * (
@@ -594,15 +684,17 @@ def report(cfg: CanonicalCampaign, result_dir: Path) -> Path:
     fig.tight_layout()
     fig.savefig(plots / "heldout_residual_diagnostics.png", dpi=160)
     plt.close(fig)
-    repeatability: dict[str, float] = {}
+    model_variation: dict[str, float] = {}
     for trajectory in sorted(set(item["trajectory"] for item in validation_metrics)):
         selected = [item["position_rmse_rad"] for item in validation_metrics if item["trajectory"] == trajectory]
-        repeatability[trajectory] = float(np.std(selected, ddof=1)) if len(selected) > 1 else 0.0
+        model_variation[trajectory] = float(np.std(selected, ddof=1)) if len(selected) > 1 else 0.0
+    real_repeatability = json.loads((target / "real_to_real_repeatability.json").read_text())
     residual = {"fit_position_rmse_mean_rad": float(np.mean([m["position_rmse_rad"] for m in fit_metrics])),
                 "validation_position_rmse_mean_rad": float(np.mean(values)),
                 "holdout_configuration": cfg.holdout_configuration,
                 "heldout_residual_correlations": correlations,
-                "repeatability_position_rmse_std_rad": repeatability,
+                "model_error_repeat_variation_position_rmse_std_rad": model_variation,
+                "real_to_real_repeatability_mean": real_repeatability["mean"],
                 "model_extension_decision": "manual residual review required"}
     (target / "residual_summary.json").write_text(json.dumps(residual, indent=2) + "\n")
     text = ["# Mode 5 current-domain M1 report", "", f"- Dynamic trajectory holdout configuration: {cfg.holdout_configuration}",

@@ -14,7 +14,7 @@ Jandi MX-106R 2.0 Mode 5 canonical 실험 계획
 --------------
 - hardware.yaml: 포트, baudrate, ID, model number, encoder zero, direction, rate.
 - controller.yaml: Drive/Operating Mode, P/I/D, FF, Profile, Goal Current/PWM과 limits, Bus Watchdog.
-- bench/geometry.yaml: L1/L2, arm mass/COM/inertia, physical fixture 축 설명, gravity zero/sign 정의.
+- bench/geometry.yaml: 고정 L1=0.10 m/L2=0.15 m, arm mass/COM/inertia, physical fixture 축 설명, gravity zero/sign 정의.
   MuJoCo equivalent hinge axis는 항상 [0,1,0]이다.
 - bench/loads.yaml: 250/500/750 g 추의 개별 실측 질량.
 - safety.yaml: 사람이 확인한 안전 한계와 pilot 파형.
@@ -44,6 +44,7 @@ check는 모터를 움직이지 않는다. LOCKED 항목을 실제 측정/설정
 ---------------------
 6 configurations x 2 approach directions x 3 repeats = 정확히 36 sweep이다.
 각 sweep은 smooth inter-point transfer, approach, fixed settling hold, averaging 순서로 측정한다.
+각 sweep의 고정 angle은 -60/-30/0/+30/+60 deg이다.
 
   uv run jandi-r2s-mode5-static --mechanical-configuration L1_m250 \
     --approach approach_positive --repeat 1 \
@@ -79,7 +80,8 @@ repeat 1/2/3 모두 repeatability용이며 데이터 확인 전에 dynamic traje
 - Stage B: delay probe로 delay prior 및 uncertainty 계산.
 - Stage C: accelerated oscillation으로 aD initial/condition consistency 계산.
 - Stage D: holdout 9 runs를 제외한 45 runs에서 aP/Ktau/delay를 고정하고
-  aD, J_arm, Coulomb, viscous만 최적화한다.
+  aD, J_arm, Coulomb, viscous만 최적화한다. PWM-saturated sample은 primary loss에서
+  제외하고 current-saturated sample은 current clip model과 flag를 유지한다.
 - Stage E는 기본 비활성이다. Stage D/held-out residual 검토 뒤 필요할 때만 fit.yaml에서
   활성화하며, aP/Ktau/delay를 포함한 7개 값은 measured uncertainty bound 안에서만
   움직이고 static/delay prior regularization을 함께 적용한다.
@@ -90,13 +92,15 @@ repeat 1/2/3 모두 repeatability용이며 데이터 확인 전에 dynamic traje
   uv run jandi-r2s-mode5-report --result results/<timestamp>_mode5_m1
 
 holdout configuration의 9 runs만 primary validation에 쓴다. trajectory/config/repeat별
-position, velocity, current, steady-state, repeatability와 saturation/thermal/residual을 검토한다.
+position, velocity, current, steady-state, saturation/thermal/residual을 검토한다.
+simulation RMSE repeat variation과 실측 repeat pair의 q/qdot/current RMSE는 별도 지표다.
 held-out evidence 없이 복잡한 friction/backlash/thermal model로 확장하지 않는다.
 validation 통과 전 whole-Jandi locomotion 설정을 자동 변경하지 않는다.
 
 10. 데이터 계약
 ---------------
-- raw는 overwrite하지 않는다. --resume은 기존 valid run만 건너뛴다.
+- raw는 overwrite하지 않는다. logical run 아래 attempt_NNN으로 invalid/incomplete retry도 보존한다.
+  valid attempt가 둘 이상이면 selected_attempt.txt 또는 select-attempt CLI로 명시한다.
 - Main은 Goal Position 100 Hz target과 연속 state block read를 사용한다. command/state rate는
   각각의 timestamp series로 따로 계산하고 interval/overrun 통계를 저장한다.
 - Realtime Tick은 modulus 32768로 unwrap한다.
@@ -111,7 +115,7 @@ validation 통과 전 whole-Jandi locomotion 설정을 자동 변경하지 않�
 ----------------------
 - hardware: port, baudrate, motor ID/model, encoder zero, position/current/PWM 부호, rate.
 - controller: Drive Mode, Position P/D, Goal/Limit Current, Goal/Limit PWM read-back.
-- geometry: L1/L2, 막대·허브·체결부 질량, COM 반경, 관성 및 그 기준, 축/영점/부호.
+- geometry: L1/L2 fixture 일치 확인, 막대·허브·체결부 질량, COM 반경, 관성 및 그 기준, 축/영점/부호.
 - loads: 250/500/750 g 추 각각의 실측 질량.
 - safety: 각도·온도·전압·전류·PWM·속도·오차 한계, transition/rest, warm-up 및 acknowledgment timestamp.
 - pilot/static/delay/dynamic trajectory의 모든 null 파형 수치.
@@ -124,3 +128,12 @@ validation 통과 전 whole-Jandi locomotion 설정을 자동 변경하지 않�
 jandi-r2s-mode5-check가 valid raw run을 기준으로 NEXT STATIC/NEXT COLLECT를 표시한다.
 실행 요청이 NEXT와 다르면 차단한다. 불가피한 순서 변경은 --override-order와 비어 있지 않은
 --override-reason을 함께 쓰며 그 사유는 metadata에 기록한다.
+
+13. GUI
+-------
+  uv run jandi-r2s-mode5-gui --mock   # 명시적 하드웨어 없는 확인
+  uv run jandi-r2s-mode5-gui          # Connect 전에는 port를 열지 않음
+
+Preview는 port 없이 동작한다. 실제 RUN은 physical setup confirmation, 기존 confirmation 문자열,
+required-value gate와 planned order를 그대로 통과해야 한다. 빨간 TORQUE OFF는 항상 표시하며
+물리 전원 차단을 대체하지 않는다. Manual telemetry는 data/temp/manual에만 저장한다.
