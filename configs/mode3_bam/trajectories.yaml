@@ -1,0 +1,46 @@
+schema_version: 1
+trajectories:
+  # 무부하 전용: delay/error->PWM과 방향 반전 백래시를 측정한다.
+  delay_probe:
+    center_rad: 0.0
+    step_amplitudes_rad: [0.03, 0.06, 0.10]
+    hold_sec: 0.8
+    repeats: 4
+  backlash_probe:
+    center_rad: 0.0
+    amplitude_rad: 0.10
+    frequency_hz: 0.05
+    cycles: 2
+  # BAM 네 궤적. 각 loaded condition에서 모두 실행한다.
+  sin_time_square:
+    center_rad: 0.0
+    amplitude_rad: 0.60
+    start_frequency_hz: 0.10
+    end_frequency_hz: 1.50
+    duration_sec: 6.0
+  sin_sin:
+    center_rad: 0.0
+    slow_amplitude_rad: 0.50
+    slow_frequency_hz: 0.20
+    high_amplitude_rad: 0.10
+    high_frequency_hz: 1.20
+    duration_sec: 6.0
+  up_and_down:
+    center_rad: 0.0
+    upper_rad: 0.70
+    return_rad: 0.55
+    raise_duration_sec: 2.0
+    lower_duration_sec: 3.0
+    final_hold_sec: 1.0
+  lift_and_drop:
+    center_rad: 0.0
+    # This bench has q=0 vertically upward, unlike BAM's gravity-stable rest
+    # orientation. Release near upright, catch on state, then recover.
+    lift_rad: -0.10
+    lift_duration_sec: 2.0
+    release_duration_sec: 0.30
+    catch_angle_rad: -0.45
+    catch_abs_velocity_rad_s: 3.5
+    recovery_duration_sec: 2.0
+    recovery_hold_sec: 0.5
+  transition_duration_sec: 3.0

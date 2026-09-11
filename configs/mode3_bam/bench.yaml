@@ -1,0 +1,29 @@
+schema_version: 1
+bench:
+  no_load_hardware:
+    horn_mass_kg: 0.0039
+    horn_fastener_mass_kg: 0.0
+  loaded_mounting_hardware:
+    horn_mass_kg: 0.006
+    horn_fastener_mass_kg: 0.0063
+    treatment: absorbed_by_loaded_equivalent_armature_identification
+  arm:
+    mass_kg: 0.0531
+    com_radius_m: 0.07337
+    inertia_about_com_kg_m2: 0.000119108
+    inertia_about_pivot_kg_m2: 0.000404978
+  load:
+    disk_mass_kg: 0.2559
+    disk_diameter_m: 0.07
+    fastener_mass_kg: 0.0524
+    fastener_intrinsic_inertia_assumption: ignored
+    disk_counts:
+      mass1: 1
+      mass2: 2
+      mass3: 3
+  axis_to_load_com_m:
+    distance1: 0.1
+    distance2: 0.15
+  gravity_m_s2: 9.80665
+  gravity_zero_angle_rad: 0.0
+  gravity_torque_sign: 1

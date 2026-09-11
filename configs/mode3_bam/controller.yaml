@@ -1,0 +1,14 @@
+schema_version: 1
+mode3_registers:
+  operating_mode: 3
+  drive_mode: 0
+  position_p_gain: 850
+  position_i_gain: 0
+  position_d_gain: 0
+  feedforward_1st_gain: 0
+  feedforward_2nd_gain: 0
+  profile_velocity: 0
+  profile_acceleration: 0
+  expected_pwm_limit_raw: 885
+  expected_current_limit_raw: 900
+  bus_watchdog_raw: 5

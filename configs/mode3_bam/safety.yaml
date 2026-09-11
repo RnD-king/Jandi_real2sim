@@ -1,0 +1,14 @@
+schema_version: 1
+confirmations:
+  collect: COLLECT_MX106_MODE3_BAM
+safety:
+  software_position_min_rad: -1.0
+  software_position_max_rad: 1.0
+  maximum_temperature_c: 65
+  minimum_input_voltage_v: 10.5
+  maximum_input_voltage_v: 14.5
+  maximum_abs_current_A: 2.8
+  maximum_abs_pwm_fraction: 0.95
+  maximum_abs_position_error_rad: 0.45
+  maximum_abs_velocity_rad_s: 4.5
+  between_runs_sec: 3.0

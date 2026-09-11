@@ -1,0 +1,58 @@
+{
+  "created_at": "2026-09-12T01:22:18.903293+09:00",
+  "device": {
+    "serial_device": "/dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FT9BTGLH-if00-port0",
+    "baudrate": 4000000,
+    "motor_id": 24,
+    "model_number": 321,
+    "firmware_version": 45
+  },
+  "register_readback": {
+    "firmware_version": 45,
+    "return_delay_time_raw": 10,
+    "homing_offset_raw": -4,
+    "drive_mode": 0,
+    "operating_mode": 3,
+    "temperature_limit_c": 80,
+    "max_voltage_limit_raw": 160,
+    "min_voltage_limit_raw": 95,
+    "pwm_limit_raw": 885,
+    "current_limit_raw": 900,
+    "velocity_limit_raw": 210,
+    "max_position_limit_raw": 4095,
+    "min_position_limit_raw": 0,
+    "position_d_gain": 0,
+    "position_i_gain": 0,
+    "position_p_gain": 850,
+    "feedforward_2nd_gain": 0,
+    "feedforward_1st_gain": 0,
+    "profile_acceleration": 0,
+    "profile_velocity": 0,
+    "status_return_level_raw": 2,
+    "bus_watchdog_raw": 0,
+    "hardware_error": 0,
+    "torque_enable": 0
+  },
+  "present": {
+    "position_raw": 2052,
+    "input_voltage_v": 12.4,
+    "temperature_c": 36
+  },
+  "engineering_hardware_limits": {
+    "hardware_temperature_limit_c": 80.0,
+    "hardware_min_voltage_v": 9.5,
+    "hardware_max_voltage_v": 16.0,
+    "hardware_current_limit_A": 3.024,
+    "hardware_pwm_limit_fraction": 1.0000499999999999,
+    "hardware_velocity_limit_rad_s": 5.035973023704439
+  },
+  "captured_encoder_zero_raw": null,
+  "inferred_signs": null,
+  "not_auto_selected": [
+    "bus_watchdog_raw",
+    "software safety thresholds",
+    "experiment angle range",
+    "load masses/distances",
+    "arm mass/COM/inertia"
+  ]
+}

@@ -1,0 +1,45 @@
+schema_version: 1
+fit:
+  resample_dt_sec: 0.01
+  evaluation_stride: 2
+  maximum_function_evaluations: 400
+  random_seed: 20260904
+  validation_improvement_threshold: 0.02
+  bounds:
+    command_delay_sec: [0.0, 0.05]
+    pwm_error_gain_per_raw_rad: [0.000001, 0.02]
+    pwm_velocity_gain_s_per_rad: [-2.0, 2.0]
+    kt_nm_per_a: [0.2, 5.0]
+    resistance_ohm: [0.1, 10.0]
+    armature_kg_m2: [0.0001, 0.10]
+    coulomb_friction_nm: [0.0, 2.0]
+    viscous_friction_nm_s_per_rad: [0.0, 5.0]
+    stribeck_friction_nm: [0.0, 2.0]
+    stribeck_velocity_rad_s: [0.001, 5.0]
+    stribeck_alpha: [0.2, 5.0]
+    load_friction: [0.0, 1.5]
+    load_stribeck_friction: [0.0, 1.5]
+    motor_load_friction: [0.0, 1.5]
+    external_load_friction: [0.0, 1.5]
+    motor_load_stribeck_friction: [0.0, 1.5]
+    external_load_stribeck_friction: [0.0, 1.5]
+    backlash_width_rad: [0.0, 0.05]
+  initial:
+    command_delay_sec: 0.01
+    pwm_error_gain_per_raw_rad: 0.001
+    pwm_velocity_gain_s_per_rad: 0.0
+    kt_nm_per_a: 1.6
+    resistance_ohm: 2.0
+    armature_kg_m2: 0.005
+    coulomb_friction_nm: 0.10
+    viscous_friction_nm_s_per_rad: 0.05
+    stribeck_friction_nm: 0.05
+    stribeck_velocity_rad_s: 0.10
+    stribeck_alpha: 1.0
+    load_friction: 0.05
+    load_stribeck_friction: 0.05
+    motor_load_friction: 0.05
+    external_load_friction: 0.05
+    motor_load_stribeck_friction: 0.05
+    external_load_stribeck_friction: 0.05
+    backlash_width_rad: 0.008

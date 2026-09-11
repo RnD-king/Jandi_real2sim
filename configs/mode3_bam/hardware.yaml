@@ -1,0 +1,15 @@
+schema_version: 1
+hardware:
+  serial_device: /dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FT9BTGLH-if00-port0
+  protocol_version: 2.0
+  baudrate: 4000000
+  motor_id: 24
+  expected_model_number: 321
+  encoder_zero_raw: 2052
+  expected_homing_offset_raw: -4
+  direction: 1
+  current_direction: -1
+  pwm_direction: 1
+timing:
+  command_rate_hz: 100
+  hardware_error_poll_rate_hz: 1

@@ -1,0 +1,19 @@
+schema_version: 1
+
+campaign:
+  id: mx106_id24_p850_20260912
+  output_root: data/raw/mode3_bam
+  processed_root: data/processed/mode3_bam
+  results_root: results/mode3_bam
+
+components:
+  hardware: hardware.yaml
+  controller: controller.yaml
+  bench: bench.yaml
+  trajectories: trajectories.yaml
+  safety: safety.yaml
+  fit: fit.yaml
+
+repetitions: [1, 2, 3]
+fit_repetitions: [1, 2]
+validation_repetitions: [3]
