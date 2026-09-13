@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import queue
 import time
@@ -17,12 +18,31 @@ from .calibrate import (
     capture_upright_zero, discover, infer_signs, jog_raw_positive,
     readback_device, save_calibration_report, verify_sign_test_configuration,
 )
-from .config import load_campaign
+from .config import load_campaign, trajectory_profile_matches
 from .trajectories import trajectories_for
 
 
 def _emit(outbox: Queue, kind: str, **values: Any) -> None:
     outbox.put({"type": kind, **values})
+
+
+def _latest_valid_attempt(cfg, condition: str, trajectory: str,
+                          repeat: int) -> Path | None:
+    logical = (cfg.output_root / str(cfg.campaign_id) / condition / trajectory /
+               f"repeat_{repeat}")
+    valid: list[Path] = []
+    for path in sorted(logical.glob("attempt_*")):
+        metadata = path / "metadata.json"
+        if not metadata.exists():
+            continue
+        try:
+            report = json.loads(metadata.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (report.get("valid") is True and
+                trajectory_profile_matches(cfg, trajectory, report)):
+            valid.append(path)
+    return valid[-1] if valid else None
 
 
 def worker_main(inbox: Queue, outbox: Queue, mock: bool = False) -> None:
@@ -160,6 +180,12 @@ def worker_main(inbox: Queue, outbox: Queue, mock: bool = False) -> None:
                     raise PermissionError("Mode-3 BAM hardware confirmation mismatch")
                 _emit(outbox, "batch_started", condition=condition, repeat=repeat)
                 for trajectory in trajectories_for(condition):
+                    existing = (None if mock else
+                                _latest_valid_attempt(cfg, condition, trajectory, repeat))
+                    if existing is not None:
+                        _emit(outbox, "run_skipped", trajectory=trajectory,
+                              reason="existing_valid_attempt", path=str(existing))
+                        continue
                     # Every trajectory restarts its local clock at zero. Tell
                     # the GUI to break the previous plot before new samples.
                     _emit(outbox, "run_started", trajectory=trajectory)
@@ -184,16 +210,24 @@ def worker_main(inbox: Queue, outbox: Queue, mock: bool = False) -> None:
                 _emit(outbox, "batch_completed", condition=condition, repeat=repeat)
             elif action == "fit_time":
                 cfg = load_campaign(command["config"])
-                _emit(outbox, "analysis_completed", stage=action, path=str(fit_time_controller(cfg)))
+                _emit(outbox, "analysis_started", stage=action, label="Time / controller characteristics")
+                progress = lambda values: _emit(outbox, "analysis_progress", **values)
+                path = fit_time_controller(cfg, progress=progress)
+                _emit(outbox, "analysis_completed", stage=action, path=str(path))
             elif action in ("fit_m1", "fit_m2", "fit_m3", "fit_m4", "fit_m5"):
                 cfg = load_campaign(command["config"])
                 model = action[-2:]
-                _emit(outbox, "analysis_completed", stage=action, path=str(fit_model(cfg, model)))
+                _emit(outbox, "analysis_started", stage=action, label=model.upper())
+                progress = lambda values: _emit(outbox, "analysis_progress", **values)
+                path = fit_model(cfg, model, progress=progress)
+                _emit(outbox, "analysis_completed", stage=action, path=str(path))
             elif action == "compare":
                 cfg = load_campaign(command["config"])
+                _emit(outbox, "analysis_started", stage=action, label="Compare M1-M5 / select")
                 _emit(outbox, "analysis_completed", stage=action, path=str(compare_models(cfg)))
             elif action == "fit_backlash":
                 cfg = load_campaign(command["config"])
+                _emit(outbox, "analysis_started", stage=action, label="Effective state backlash")
                 _emit(outbox, "analysis_completed", stage=action, path=str(fit_backlash(cfg)))
             else: raise KeyError(action)
         except BaseException as exc:

@@ -1,0 +1,52 @@
+campaign_id: mx106_id24_p850_20260913_v2
+source_attempt: /home/noh/Jandi_real2sim/data/raw/mode3_bam/mx106_id24_p850_20260913_v2/mass3_distance1/up_and_down/repeat_3/attempt_001
+condition: mass3_distance1
+trajectory: up_and_down
+repeat: 3
+validation_only: true
+measured_current_source: present_current_raw
+measured_current_direction: 1
+physics_timestep_sec: 0.001
+bench:
+  physical_mass_kg: 0.8732000000000001
+  center_of_mass_m: 0.09838060810810811
+  physical_inertia_about_pivot_kg_m2: 0.009076194250000003
+  physical_inertia_about_com_kg_m2: 0.0006247149440370952
+models:
+  m1:
+    parameters:
+      kt_nm_per_a: 2.2684950449273353
+      resistance_ohm: 2.51914916953478
+      armature_kg_m2: 0.033271604379126345
+      coulomb_friction_nm: 0.20126847316469887
+      viscous_friction_nm_s_per_rad: 5.6155293946522386e-11
+    metrics:
+      position_mae: 0.0029887755863393832
+      position_rmse: 0.003475086123567183
+      velocity_mae: 0.016633247559907995
+      velocity_rmse: 0.02623216802967009
+      pwm_mae: 0.018288437300662118
+      pwm_rmse: 0.020839225909232456
+      current_mae: 0.07908617873115387
+      current_rmse: 0.10348588018641042
+      maximum_abs_simulated_pwm_fraction: 0.11313477455180525
+      maximum_abs_simulated_current_A: 0.3429608569059089
+  m3:
+    parameters:
+      kt_nm_per_a: 2.2161716898261687
+      resistance_ohm: 2.3243950944304173
+      armature_kg_m2: 0.025799168257662458
+      coulomb_friction_nm: 0.1717060794144954
+      viscous_friction_nm_s_per_rad: 9.474226883210329e-20
+      load_friction: 0.1573951561611039
+    metrics:
+      position_mae: 0.0024785934827235567
+      position_rmse: 0.003039180967564686
+      velocity_mae: 0.016839604778580257
+      velocity_rmse: 0.02609108528639446
+      pwm_mae: 0.012560673266313816
+      pwm_rmse: 0.015879768127266686
+      current_mae: 0.1018483996199114
+      current_rmse: 0.12115837517396251
+      maximum_abs_simulated_pwm_fraction: 0.11135702792158292
+      maximum_abs_simulated_current_A: 0.44911490449323666

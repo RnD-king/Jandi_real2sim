@@ -100,17 +100,25 @@ def _cfg_for(device: dict[str, int | str]) -> Any:
 def _dominant_sign(values: list[int], *, minimum: int) -> int:
     useful = [value for value in values if abs(value) >= minimum]
     if not useful:
-        raise RuntimeError("전류/PWM 부호를 판별할 신호가 너무 작습니다. 혼을 장착하고 다시 시도하십시오.")
+        raise RuntimeError("전류/PWM 상태를 확인할 신호가 너무 작습니다. 혼을 장착하고 다시 시도하십시오.")
     median = statistics.median(useful)
     return 1 if median > 0 else -1
 
 
 def infer_signs(raw_positive_is_joint_positive: bool, currents: list[int], pwms: list[int]) -> dict[str, int]:
     direction = 1 if raw_positive_is_joint_positive else -1
+    # A moving, nearly unloaded jog cannot identify torque-current direction
+    # reliably: gravity and back-EMF may make Present Current oppose the PWM
+    # during part of the motion.  Present PWM gives the actuator command-axis
+    # convention; use the same convention for signed Present Current.  Still
+    # require a measurable current signal so a disconnected/stale read is not
+    # silently accepted.
+    _dominant_sign(currents, minimum=2)
+    pwm_direction = direction * _dominant_sign(pwms, minimum=2)
     return {
         "direction": direction,
-        "current_direction": direction * _dominant_sign(currents, minimum=2),
-        "pwm_direction": direction * _dominant_sign(pwms, minimum=2),
+        "current_direction": pwm_direction,
+        "pwm_direction": pwm_direction,
         # q=0 is the upright position: tau_g = +mgl*sin(q).
         "gravity_torque_sign": 1,
     }

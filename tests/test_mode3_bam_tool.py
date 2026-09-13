@@ -1,16 +1,24 @@
 from dataclasses import replace
+import json
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
-from jandi_real2sim.mode3_bam.config import DEFAULT_CAMPAIGN, EDITABLE, load_campaign
+from jandi_real2sim.mode3_bam.config import (
+    DEFAULT_CAMPAIGN, EDITABLE, load_campaign, trajectory_profile_matches,
+)
 import numpy as np
 
 from jandi_real2sim.mode3_bam.analysis import MODEL_PARAMETERS, _friction_budget, _system_inertia, _zoh
-from jandi_real2sim.mode3_bam.acquisition import _validate_samples
+from jandi_real2sim.mode3_bam.acquisition import (
+    _brake_plan, _drop_brake_plan, _validate_samples, current_raw_to_joint_a,
+)
 from jandi_real2sim.mode3_bam.calibrate import (
     capture_upright_zero, engineering_limits, infer_signs, jog_raw_positive,
 )
 from jandi_real2sim.mode3_bam.trajectories import build, trajectories_for
+from jandi_real2sim.mode3_bam.gui_worker import _latest_valid_attempt
 
 
 def configured():
@@ -20,6 +28,50 @@ def configured():
 
 
 class Mode3BamToolTest(unittest.TestCase):
+    def test_batch_resume_selects_latest_valid_attempt_only(self):
+        cfg = configured()
+        with tempfile.TemporaryDirectory() as temporary:
+            cfg = replace(
+                cfg,
+                project_root=Path(temporary),
+                campaign={**cfg.campaign, "output_root": "raw"},
+            )
+            logical = (cfg.output_root / str(cfg.campaign_id) / "mass1_distance1" /
+                       "sin_sin" / "repeat_1")
+            for number, valid in ((1, False), (2, True), (3, False)):
+                attempt = logical / f"attempt_{number:03d}"
+                attempt.mkdir(parents=True)
+                (attempt / "metadata.json").write_text(json.dumps({"valid": valid}))
+            self.assertEqual(
+                _latest_valid_attempt(cfg, "mass1_distance1", "sin_sin", 1),
+                logical / "attempt_002",
+            )
+
+    def test_batch_resume_rejects_obsolete_drop_profile(self):
+        cfg = configured()
+        with tempfile.TemporaryDirectory() as temporary:
+            cfg = replace(
+                cfg,
+                project_root=Path(temporary),
+                campaign={**cfg.campaign, "output_root": "raw"},
+            )
+            logical = (cfg.output_root / str(cfg.campaign_id) / "mass1_distance1" /
+                       "lift_and_drop" / "repeat_1")
+            old = logical / "attempt_001"
+            old.mkdir(parents=True)
+            (old / "metadata.json").write_text(json.dumps({"valid": True}))
+            self.assertIsNone(_latest_valid_attempt(
+                cfg, "mass1_distance1", "lift_and_drop", 1,
+            ))
+            new = logical / "attempt_002"
+            new.mkdir()
+            (new / "metadata.json").write_text(json.dumps({
+                "valid": True, "trajectory_profile_version": 2,
+            }))
+            self.assertEqual(_latest_valid_attempt(
+                cfg, "mass1_distance1", "lift_and_drop", 1,
+            ), new)
+
     def test_seven_conditions_three_repeats_and_fixed_gain(self):
         cfg = load_campaign(DEFAULT_CAMPAIGN)
         self.assertEqual(len(cfg.conditions), 7)
@@ -34,6 +86,30 @@ class Mode3BamToolTest(unittest.TestCase):
         self.assertEqual(trajectories_for("no_load"), ("delay_probe", "backlash_probe"))
         self.assertEqual(trajectories_for("mass1_distance1"), (
             "sin_time_square", "sin_sin", "up_and_down", "lift_and_drop"
+        ))
+        self.assertAlmostEqual(load_campaign(DEFAULT_CAMPAIGN).trajectories[
+            "sin_time_square"]["end_frequency_hz"], 1.0)
+
+    def test_post_run_brake_continues_velocity_within_position_margin(self):
+        cfg = configured()
+        start_q, start_dq = -0.575, -3.2
+        duration, stop_goal = _brake_plan(cfg, start_q, start_dq)
+        self.assertGreater(duration, 0.0)
+        self.assertLessEqual(duration, 0.5)
+        self.assertAlmostEqual(stop_goal, start_q + 0.5 * start_dq * duration)
+        self.assertGreaterEqual(
+            stop_goal,
+            cfg.safety["software_position_min_rad"] +
+            cfg.trajectories["post_run_brake"]["position_margin_rad"],
+        )
+
+    def test_old_drop_profile_is_not_reused(self):
+        cfg = configured()
+        self.assertFalse(trajectory_profile_matches(
+            cfg, "lift_and_drop", {"trajectory_profile_version": 1},
+        ))
+        self.assertTrue(trajectory_profile_matches(
+            cfg, "lift_and_drop", {"trajectory_profile_version": 2},
         ))
 
     def test_measured_bench_constants_and_disk_inertia(self):
@@ -69,6 +145,11 @@ class Mode3BamToolTest(unittest.TestCase):
         self.assertIn("motor_load_friction", MODEL_PARAMETERS["m5"])
         self.assertIn("external_load_friction", MODEL_PARAMETERS["m5"])
 
+    def test_model_parameter_counts_match_ordered_fit_complexity(self):
+        self.assertEqual({name: len(parameters) for name, parameters in MODEL_PARAMETERS.items()}, {
+            "m1": 5, "m2": 8, "m3": 6, "m4": 10, "m5": 12,
+        })
+
     def test_m5_collapses_to_m4_when_directional_coefficients_match(self):
         common = {
             "coulomb_friction_nm": 0.1, "viscous_friction_nm_s_per_rad": 0.2,
@@ -91,10 +172,23 @@ class Mode3BamToolTest(unittest.TestCase):
         self.assertTrue(generated["lift_and_drop"][-1].torque_enable)
         self.assertAlmostEqual(generated["lift_and_drop"][-1].goal_rad, 0.0)
         released = [sample for sample in generated["lift_and_drop"] if sample.phase == "released"]
-        self.assertEqual(len(released), round(0.30 * cfg.command_rate_hz))
-        self.assertAlmostEqual(cfg.trajectories["lift_and_drop"]["catch_angle_rad"], -0.45)
-        self.assertAlmostEqual(cfg.trajectories["lift_and_drop"]["catch_abs_velocity_rad_s"], 3.5)
+        self.assertEqual(len(released), round(2.0 * cfg.command_rate_hz))
+        self.assertAlmostEqual(cfg.trajectories["lift_and_drop"]["lift_rad"], -5 * np.pi / 18)
+        self.assertEqual(cfg.trajectories["lift_and_drop"]["profile_version"], 2)
+        self.assertAlmostEqual(cfg.trajectories["lift_and_drop"]["catch_angle_rad"], -7*np.pi/18)
+        self.assertNotIn("catch_abs_velocity_rad_s", cfg.trajectories["lift_and_drop"])
+        self.assertAlmostEqual(cfg.trajectories["lift_and_drop"]["brake_stop_angle_rad"], -22*np.pi/45)
+        self.assertAlmostEqual(cfg.trajectories["lift_and_drop"]["emergency_angle_rad"], -31*np.pi/60)
+        self.assertAlmostEqual(cfg.trajectories["lift_and_drop"]["physical_collision_angle_rad"], -19*np.pi/36)
         self.assertTrue(all(sample.torque_enable for sample in generated["sin_time_square"]))
+
+    def test_drop_brake_plan_stops_before_configured_target(self):
+        cfg = configured()
+        spec = cfg.trajectories["lift_and_drop"]
+        duration, stop_goal = _drop_brake_plan(spec, -1.24, -2.7)
+        self.assertGreater(duration, 0.0)
+        self.assertLessEqual(duration, spec["brake_maximum_duration_sec"])
+        self.assertGreaterEqual(stop_goal, spec["brake_stop_angle_rad"])
 
     def test_delay_uses_previous_value_hold(self):
         source_t = np.asarray([0.0, 1.0, 2.0])
@@ -116,6 +210,17 @@ class Mode3BamToolTest(unittest.TestCase):
             "gravity_torque_sign": 1,
         })
         self.assertEqual(infer_signs(False, [3, 4, 5], [8, 9, 10])["direction"], -1)
+        # Moving-jog current can have the opposite sign because of gravity or
+        # back-EMF; the canonical current axis follows the PWM command axis.
+        self.assertEqual(
+            infer_signs(True, [-3, -4, -5], [8, 9, 10])["current_direction"],
+            1,
+        )
+
+    def test_present_current_uses_joint_axis_sign(self):
+        cfg = configured()
+        self.assertEqual(cfg.hardware["current_direction"], 1)
+        self.assertAlmostEqual(current_raw_to_joint_a(cfg, -56), -0.18816)
 
     def test_calibration_converts_hardware_limits(self):
         converted = engineering_limits({

@@ -20,6 +20,14 @@ LOADED_TRAJECTORIES = ("sin_time_square", "sin_sin", "up_and_down", "lift_and_dr
 NO_LOAD_TRAJECTORIES = ("delay_probe", "backlash_probe")
 
 
+def trajectory_profile_matches(cfg: "Campaign", trajectory: str,
+                               metadata: dict[str, Any]) -> bool:
+    """Reject valid attempts collected with an obsolete trajectory profile."""
+    expected = int(cfg.trajectories[trajectory].get("profile_version", 1))
+    actual = int(metadata.get("trajectory_profile_version", 1))
+    return actual == expected
+
+
 @dataclass(frozen=True)
 class Condition:
     id: str

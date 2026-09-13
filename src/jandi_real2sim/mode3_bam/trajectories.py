@@ -74,7 +74,7 @@ def build(cfg: Campaign, name: str) -> tuple[Sample, ...]:
     elif name == "lift_and_drop":
         target = float(spec["lift_rad"]); duration = float(spec["lift_duration_sec"])
         _add(result, cfg, duration, "lift", lambda t, d: _smooth(center, target, t, d))
-        _add(result, cfg, float(spec["release_duration_sec"]), "released",
+        _add(result, cfg, float(spec["release_failure_timeout_sec"]), "released",
              lambda *_: target, torque_enable=False)
         # Acquisition may end the release early on an angle/velocity threshold.
         # These recovery samples are replaced by a measured-state interpolation

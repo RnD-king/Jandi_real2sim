@@ -16,7 +16,7 @@ trajectories:
     center_rad: 0.0
     amplitude_rad: 0.60
     start_frequency_hz: 0.10
-    end_frequency_hz: 1.50
+    end_frequency_hz: 1.00
     duration_sec: 6.0
   sin_sin:
     center_rad: 0.0
@@ -33,14 +33,27 @@ trajectories:
     lower_duration_sec: 3.0
     final_hold_sec: 1.0
   lift_and_drop:
+    profile_version: 2
     center_rad: 0.0
     # This bench has q=0 vertically upward, unlike BAM's gravity-stable rest
     # orientation. Release near upright, catch on state, then recover.
-    lift_rad: -0.10
+    lift_rad: -0.8726646259971648  # -50 deg
     lift_duration_sec: 2.0
-    release_duration_sec: 0.30
-    catch_angle_rad: -0.45
-    catch_abs_velocity_rad_s: 3.5
+    # Not a successful termination condition: if neither state threshold fires,
+    # the run is recovered to zero and marked invalid after this guard time.
+    release_failure_timeout_sec: 2.0
+    catch_angle_rad: -1.2217304763960306  # -70 deg: begin velocity-continuous braking
+    brake_stop_angle_rad: -1.53588974175501  # -88 deg target
+    brake_maximum_duration_sec: 0.50
+    brake_minimum_abs_velocity_rad_s: 0.05
+    emergency_angle_rad: -1.6231562043547265  # -93 deg software warning
+    physical_collision_angle_rad: -1.6580627893946132  # -95 deg measured fixture limit
     recovery_duration_sec: 2.0
     recovery_hold_sec: 0.5
   transition_duration_sec: 3.0
+  # 본 궤적 끝의 실제 q,dq를 이어받아 일정 감속한 뒤 0 rad 복귀를 시작한다.
+  post_run_brake:
+    maximum_duration_sec: 0.50
+    maximum_travel_rad: 0.35
+    position_margin_rad: 0.05
+    minimum_abs_velocity_rad_s: 0.05

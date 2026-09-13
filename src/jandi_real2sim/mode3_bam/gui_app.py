@@ -12,9 +12,30 @@ from pathlib import Path
 import pyqtgraph as pg
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from .config import DEFAULT_CAMPAIGN, DISTANCE_KEYS, MASS_KEYS, load_campaign, update_value
+from .config import (
+    DEFAULT_CAMPAIGN, DISTANCE_KEYS, MASS_KEYS, load_campaign,
+    trajectory_profile_matches, update_value,
+)
 from .gui_worker import worker_main
 from .trajectories import trajectories_for
+
+
+def _drop_pilot_valid(cfg) -> bool:
+    if not cfg.campaign_id:
+        return False
+    root = (cfg.output_root / str(cfg.campaign_id) / "pilot" / "drop_safety" /
+            "mass1_distance1" / "lift_and_drop" / "repeat_1")
+    for path in root.glob("attempt_*"):
+        metadata = path / "metadata.json"
+        if not metadata.exists():
+            continue
+        report = json.loads(metadata.read_text())
+        if (report.get("valid") and
+                trajectory_profile_matches(cfg, "lift_and_drop", report) and
+                report.get("drop_catch", {}).get("reason") == "angle" and
+                "drop_emergency" not in report):
+            return True
+    return False
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -22,7 +43,8 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__(); self.config_path = config.resolve(); self.mock = mock
         self.cfg = load_campaign(self.config_path); self.inbox: mp.Queue = mp.Queue(); self.outbox: mp.Queue = mp.Queue()
         self.worker = mp.Process(target=worker_main, args=(self.inbox, self.outbox, mock), daemon=True); self.worker.start()
-        self.active = False; self.buffers = {key: [] for key in ("t", "goal", "q", "dq", "pwm", "current")}
+        self.active = False; self.analysis_active = False; self.analysis_action = None
+        self.buffers = {key: [] for key in ("t", "goal", "q", "dq", "pwm", "current")}
         self.setWindowTitle("MX-106 Mode 3 · BAM identification" + (" [MOCK]" if mock else "")); self.resize(1450, 900)
         self._build(); self.refresh(); self.timer = QtCore.QTimer(self); self.timer.timeout.connect(self._drain); self.timer.start(30)
 
@@ -58,7 +80,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.fields[key] = box; grid.addWidget(QtWidgets.QLabel(label), index, 0); grid.addWidget(box, index, 1, 1, 3)
         self.derived_loads = QtWidgets.QLabel(); self.derived_loads.setWordWrap(True)
         grid.addWidget(self.derived_loads, len(labels)+1, 0, 1, 4)
-        save = QtWidgets.QPushButton("Validate & save campaign/bench values"); save.clicked.connect(self._save); grid.addWidget(save, len(labels)+2,0,1,4)
+        self.save_button = QtWidgets.QPushButton("Validate & save campaign/bench values"); self.save_button.clicked.connect(self._save); grid.addWidget(self.save_button, len(labels)+2,0,1,4)
         left.addWidget(setup)
 
         pilot = QtWidgets.QGroupBox("Required before loaded campaign"); pilot_layout = QtWidgets.QVBoxLayout(pilot)
@@ -126,9 +148,18 @@ class MainWindow(QtWidgets.QMainWindow):
                   ("fit_m5","6. Fit M5 — directional load dependence"),
                   ("compare","7. Compare M1–M5 / select"),
                   ("fit_backlash","8. Fit effective state backlash"))
+        self.fit_stage_labels = dict(stages); self.fit_buttons = {}
         for action, label in stages:
             button=QtWidgets.QPushButton(label); button.setMinimumHeight(45); button.clicked.connect(lambda _=False,a=action:self._analyze(a)); fg.addWidget(button)
-        note=QtWidgets.QLabel("Hard contract: repeats 1·2 only fit. Repeat 3 is validation-only.\nEach stage checks that its prerequisite result exists."); note.setWordWrap(True); fg.addWidget(note); fg.addStretch(1)
+            self.fit_buttons[action] = button
+        note=QtWidgets.QLabel("Hard contract: repeats 1·2 only fit. Repeat 3 is validation-only.\nEach stage checks that its prerequisite result exists."); note.setWordWrap(True); fg.addWidget(note)
+        self.fit_status = QtWidgets.QLabel("Idle — select the next ordered fitting stage.")
+        self.fit_status.setWordWrap(True); fg.addWidget(self.fit_status)
+        self.fit_progress = QtWidgets.QProgressBar(); self.fit_progress.setRange(0, 100); self.fit_progress.setValue(0)
+        fg.addWidget(self.fit_progress)
+        self.fit_log = QtWidgets.QPlainTextEdit(); self.fit_log.setReadOnly(True)
+        self.fit_log.setPlaceholderText("Fitting progress, elapsed time, RMSE, completion path, and errors appear here.")
+        fg.addWidget(self.fit_log, 1)
 
     def _save(self) -> None:
         try:
@@ -183,8 +214,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _calibration_apply(self) -> None:
         text = (
-            "확인한 장치 정보, 영점, direction/current_direction/pwm_direction 및 "
-            "gravity_torque_sign을 canonical YAML에 기록합니다.\n"
+            "확인한 장치 정보, 영점, direction/pwm_direction과 PWM 축을 따르는 "
+            "current_direction 및 gravity_torque_sign을 canonical YAML에 기록합니다.\n"
             "추·거리·관성 및 software safety limits는 변경하지 않습니다. 계속할까요?"
         )
         if QtWidgets.QMessageBox.question(self, "Apply calibration", text) != QtWidgets.QMessageBox.Yes:
@@ -217,13 +248,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"I_COM={item.intrinsic_inertia_kg_m2:.9f} kg m²" for item in derived
             )
         )
-        pilot_root = (self.cfg.output_root / str(self.cfg.campaign_id) / "pilot" /
-                      "drop_safety" / "mass1_distance1" / "lift_and_drop" / "repeat_1")
-        pilot_valid = any(
-            (path / "metadata.json").exists() and
-            json.loads((path / "metadata.json").read_text()).get("valid")
-            for path in pilot_root.glob("attempt_*")
-        ) if self.cfg.campaign_id else False
+        pilot_valid = _drop_pilot_valid(self.cfg)
         self.drop_pilot_status.setText(
             "PASS — loaded runs unlocked" if pilot_valid else
             "PENDING — run after no-load repeats, before the first loaded run"
@@ -236,7 +261,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 total=len(trajectories_for(condition)); valid=0
                 for trajectory in trajectories_for(condition):
                     logical=root/condition/trajectory/f"repeat_{repeat}"
-                    if any((p/"metadata.json").exists() and json.loads((p/"metadata.json").read_text()).get("valid") for p in logical.glob("attempt_*")): valid+=1
+                    if any(
+                        (p/"metadata.json").exists()
+                        and (report := json.loads((p/"metadata.json").read_text())).get("valid")
+                        and trajectory_profile_matches(self.cfg, trajectory, report)
+                        for p in logical.glob("attempt_*")
+                    ): valid+=1
                 self.progress.setItem(row,repeat,QtWidgets.QTableWidgetItem(f"{valid}/{total}"))
 
     def run_drop_pilot(self) -> None:
@@ -246,8 +276,10 @@ class MainWindow(QtWidgets.QMainWindow):
             text = (
                 "Mass1 × Distance1 장치를 조립하십시오.\n"
                 f"Load assembly: {condition.mass_kg:.4f} kg at {condition.distance_m:.3f} m\n\n"
-                "동작: -5.7° 이동 → Torque OFF → -25.8° 또는 |dq|=3.5 rad/s "
-                "또는 0.30초에서 재제동 → 0° 복귀\n\n"
+                "동작: -50° 이동 → Torque OFF → -70°부터 속도 연속 감속 "
+                "→ -88° 이내 정지 목표 → 0° 복귀\n"
+                "-93°는 경고, -95°는 측정된 물리 충돌 한계입니다.\n"
+                "Drop 구간에서는 속도로 중단하지 않습니다.\n\n"
                 "낙하 방향 완충장치와 비상 TORQUE OFF를 준비했습니까?"
             )
             if QtWidgets.QMessageBox.question(self, "Authorize drop safety pilot", text) != QtWidgets.QMessageBox.Yes:
@@ -262,14 +294,7 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             cfg=load_campaign(self.config_path,require_hardware=not self.mock,require_bench=condition!="no_load")
             if condition != "no_load" and not self.mock:
-                pilot_root = (cfg.output_root / str(cfg.campaign_id) / "pilot" / "drop_safety" /
-                              "mass1_distance1" / "lift_and_drop" / "repeat_1")
-                pilot_valid = any(
-                    (path / "metadata.json").exists() and
-                    json.loads((path / "metadata.json").read_text()).get("valid")
-                    for path in pilot_root.glob("attempt_*")
-                )
-                if not pilot_valid:
+                if not _drop_pilot_valid(cfg):
                     raise RuntimeError("Drop safety pilot을 먼저 성공시켜야 부하 본실험을 실행할 수 있습니다.")
             c=cfg.condition(condition); repeat=int(self.repeat.currentText()); trajectories=", ".join(trajectories_for(condition))
             text=(f"Mode 3 / P=850\nCondition: {condition}\nDisks: {c.disk_count}\n"
@@ -283,7 +308,36 @@ class MainWindow(QtWidgets.QMainWindow):
         except BaseException as exc: QtWidgets.QMessageBox.critical(self,"Run rejected",str(exc))
 
     def _analyze(self, action: str) -> None:
-        self._log(f"Requested: {action}"); self.inbox.put({"action":action,"config":str(self.config_path)})
+        if self.analysis_active:
+            QtWidgets.QMessageBox.information(self, "Fitting in progress", "현재 피팅이 끝날 때까지 기다리십시오.")
+            return
+        self.analysis_active = True
+        self.analysis_action = action
+        self._set_analysis_buttons(False)
+        label = self.fit_stage_labels[action]
+        self.fit_buttons[action].setText(f"RUNNING — {label}")
+        self.fit_status.setText(f"Running — {label}")
+        self.fit_progress.setRange(0, 0)
+        self._fit_log(f"START | {label}")
+        self._log(f"Requested: {action}")
+        self.inbox.put({"action":action,"config":str(self.config_path)})
+
+    def _set_analysis_buttons(self, enabled: bool) -> None:
+        for button in self.fit_buttons.values(): button.setEnabled(enabled)
+        self._set_buttons(enabled)
+        self.connect.setEnabled(enabled)
+        self.save_button.setEnabled(enabled)
+        for button in self.calibration_buttons.values(): button.setEnabled(enabled)
+
+    def _finish_analysis(self, *, success: bool, message: str) -> None:
+        self.analysis_active = False
+        for action, button in self.fit_buttons.items():
+            button.setText(self.fit_stage_labels[action])
+        self.analysis_action = None
+        self._set_analysis_buttons(True)
+        self.fit_progress.setRange(0, 100)
+        self.fit_progress.setValue(100 if success else 0)
+        self.fit_status.setText(("Completed — " if success else "Failed — ") + message)
 
     def _set_buttons(self, enabled: bool) -> None:
         for button in self.condition_buttons.values(): button.setEnabled(enabled)
@@ -295,6 +349,31 @@ class MainWindow(QtWidgets.QMainWindow):
             except queue.Empty: break
             kind=message.get("type")
             if kind=="telemetry": self._telemetry(message)
+            elif kind=="analysis_started":
+                self.fit_status.setText(f"Running — {message.get('label', message.get('stage'))}")
+                self._fit_log(f"WORKER STARTED | {message.get('label', message.get('stage'))}")
+            elif kind=="analysis_progress":
+                evaluation=int(message.get("evaluation", 0)); total=int(message.get("total", 0))
+                elapsed=float(message.get("elapsed_sec", 0.0)); current=float(message.get("current_rmse", float("nan")))
+                best=float(message.get("best_rmse", float("nan")))
+                if total > 0:
+                    self.fit_progress.setRange(0, total); self.fit_progress.setValue(min(evaluation, total))
+                status=(f"Running — {message.get('stage')} | evaluation {evaluation}/{total} | "
+                        f"elapsed {elapsed:.1f} s | RMSE current={current:.6f}, best={best:.6f} rad")
+                details = ""
+                if "command_delay_sec" in message:
+                    details = f" | delay={float(message['command_delay_sec'])*1000:.2f} ms"
+                elif message.get("parameters"):
+                    details = " | " + ", ".join(
+                        f"{name}={float(value):.6g}"
+                        for name, value in message["parameters"].items()
+                    )
+                self.fit_status.setText(status); self._fit_log(status + details)
+            elif kind=="analysis_completed":
+                stage=str(message.get("stage")); path=str(message.get("path"))
+                self._fit_log(f"COMPLETED | {stage} | {path}")
+                self._finish_analysis(success=True, message=f"{stage}\n{path}")
+                self._log(str(message)); self.refresh()
             elif kind=="run_started":
                 self._reset_live()
                 self._log(str(message))
@@ -342,6 +421,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
             else:
                 self._log(str(message))
+                if kind=="error" and str(message.get("action")) in self.fit_stage_labels:
+                    action=str(message.get("action")); error=str(message.get("error"))
+                    self._fit_log(f"ERROR | {action} | {error}")
+                    self._finish_analysis(success=False, message=f"{action}: {error}")
                 if kind=="error" and str(message.get("action", "")).startswith("calibration_"):
                     self._calibration_line(f"ERROR [{message.get('action')}]: {message.get('error')}")
                     QtWidgets.QMessageBox.critical(self, "Calibration failed", str(message.get("error")))
@@ -360,6 +443,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for plot,key in (("velocity","dq"),("pwm","pwm"),("current","current")): self.plots[plot].clear(); self.plots[plot].plot(t,self.buffers[key],pen="c")
 
     def _log(self,text:str)->None:self.log.appendPlainText(text)
+    def _fit_log(self,text:str)->None:self.fit_log.appendPlainText(text)
     def _calibration_line(self,text:str)->None:self.calibration_status.appendPlainText(text)
     def closeEvent(self,event:QtGui.QCloseEvent)->None:
         if self.active:self.inbox.put({"action":"torque_off","config":str(self.config_path)})

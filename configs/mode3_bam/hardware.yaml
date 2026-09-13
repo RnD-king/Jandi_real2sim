@@ -8,7 +8,7 @@ hardware:
   encoder_zero_raw: 2052
   expected_homing_offset_raw: -4
   direction: 1
-  current_direction: -1
+  current_direction: 1
   pwm_direction: 1
 timing:
   command_rate_hz: 100

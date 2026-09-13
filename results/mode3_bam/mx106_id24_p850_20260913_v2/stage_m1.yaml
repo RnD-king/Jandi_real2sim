@@ -1,0 +1,26 @@
+stage: m1
+created_at: '2026-09-13T09:17:10.268773+09:00'
+model: m1
+parameters:
+  kt_nm_per_a: 2.2684950449273353
+  resistance_ohm: 2.51914916953478
+  armature_kg_m2: 0.033271604379126345
+  coulomb_friction_nm: 0.20126847316469887
+  viscous_friction_nm_s_per_rad: 5.6155293946522386e-11
+fit:
+  position_mae_rad: 0.0022462152560488373
+  position_rmse_rad: 0.003118527547662288
+  run_count: 48
+validation:
+  position_mae_rad: 0.002225113956750212
+  position_rmse_rad: 0.0031077525611937704
+  run_count: 24
+optimizer:
+  success: true
+  message: '`ftol` termination condition is satisfied.'
+  evaluations: 15
+fit_repetitions:
+- 1
+- 2
+validation_repetitions:
+- 3

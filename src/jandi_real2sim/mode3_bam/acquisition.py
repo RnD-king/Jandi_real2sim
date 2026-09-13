@@ -34,6 +34,18 @@ COMMAND_FIELDS = (
 )
 
 
+def current_raw_to_joint_a(
+    cfg: Campaign, raw: int | float, *, direction: int | None = None
+) -> float:
+    """Convert signed Present Current raw data to the experiment joint axis."""
+    current_direction = (
+        int(cfg.hardware["current_direction"]) if direction is None else int(direction)
+    )
+    if current_direction not in (-1, 1):
+        raise ValueError("current direction must be -1 or +1")
+    return current_direction * float(raw) * CURRENT_A_PER_RAW
+
+
 def _run_root(cfg: Campaign, condition: str, trajectory: str, repeat: int,
               run_group: str | None = None) -> Path:
     base = cfg.output_root / str(cfg.campaign_id)
@@ -58,7 +70,7 @@ def _values(cfg: Campaign, state: State) -> dict[str, float | int]:
         "present_pwm_raw": state.present_pwm_raw,
         "present_pwm_fraction": int(cfg.hardware["pwm_direction"]) * state.present_pwm_raw * PWM_FRACTION_PER_RAW,
         "present_current_raw": state.present_current_raw,
-        "present_current_A": int(cfg.hardware["current_direction"]) * state.present_current_raw * CURRENT_A_PER_RAW,
+        "present_current_A": current_raw_to_joint_a(cfg, state.present_current_raw),
         "input_voltage_V": state.input_voltage_raw * 0.1,
         "temperature_C": state.temperature_c,
         "realtime_tick_raw": state.realtime_tick_raw,
@@ -67,7 +79,8 @@ def _values(cfg: Campaign, state: State) -> dict[str, float | int]:
     }
 
 
-def _check_safety(cfg: Campaign, state: State, goal: float, torque_enabled: bool) -> None:
+def _check_safety(cfg: Campaign, state: State, goal: float, torque_enabled: bool,
+                  *, ignore_velocity: bool = False) -> None:
     row = _values(cfg, state)
     q = float(row["present_position_rad"]); dq = float(row["present_velocity_rad_s"])
     current = float(row["present_current_A"]); pwm = float(row["present_pwm_fraction"])
@@ -76,13 +89,18 @@ def _check_safety(cfg: Campaign, state: State, goal: float, torque_enabled: bool
     violated = []
     if not float(safety["software_position_min_rad"]) <= q <= float(safety["software_position_max_rad"]): violated.append("position")
     if torque_enabled and abs(goal - q) >= float(safety["maximum_abs_position_error_rad"]): violated.append("position_error")
-    if abs(dq) >= float(safety["maximum_abs_velocity_rad_s"]): violated.append("velocity")
+    if (not ignore_velocity and
+            abs(dq) >= float(safety["maximum_abs_velocity_rad_s"])): violated.append("velocity")
     if abs(current) >= float(safety["maximum_abs_current_A"]): violated.append("current")
     if abs(pwm) >= float(safety["maximum_abs_pwm_fraction"]): violated.append("pwm")
     if not float(safety["minimum_input_voltage_v"]) <= voltage <= float(safety["maximum_input_voltage_v"]): violated.append("voltage")
     if temperature >= float(safety["maximum_temperature_c"]): violated.append("temperature")
     if violated:
-        raise RuntimeError(f"LIVE SAFETY {','.join(violated)} q={q:.5f} dq={dq:.5f} I={current:.3f} pwm={pwm:.3f}")
+        raise RuntimeError(
+            f"LIVE SAFETY {','.join(violated)} q={q:.5f} dq={dq:.5f} "
+            f"I={current:.3f} pwm={pwm:.3f} V={voltage:.2f} "
+            f"Vraw={state.input_voltage_raw} T={temperature:.0f}C"
+        )
 
 
 def _validate_samples(cfg: Campaign, samples: list[Sample]) -> None:
@@ -129,6 +147,74 @@ def _transition(bus: Mode3Bus, cfg: Campaign, start: float, target: float,
         time.sleep(max(0.0, origin + (index + 1) / cfg.command_rate_hz - time.monotonic()))
 
 
+def _brake_plan(cfg: Campaign, start_q: float, start_dq: float) -> tuple[float, float]:
+    """Return a bounded constant-deceleration duration and stopping goal."""
+    spec = cfg.trajectories["post_run_brake"]
+    speed = abs(start_dq)
+    if speed < float(spec["minimum_abs_velocity_rad_s"]):
+        return 0.0, start_q
+
+    margin = float(spec["position_margin_rad"])
+    lower = float(cfg.safety["software_position_min_rad"]) + margin
+    upper = float(cfg.safety["software_position_max_rad"]) - margin
+    available = upper - start_q if start_dq > 0.0 else start_q - lower
+    travel = min(float(spec["maximum_travel_rad"]), max(0.0, available))
+    if travel <= 0.0:
+        return 0.0, start_q
+
+    # With constant deceleration, stopping distance is 0.5*|dq|*duration.
+    duration = min(float(spec["maximum_duration_sec"]), 2.0 * travel / speed)
+    stop_goal = start_q + 0.5 * start_dq * duration
+    return duration, min(upper, max(lower, stop_goal))
+
+
+def _drop_brake_plan(spec: dict[str, object], start_q: float,
+                     start_dq: float) -> tuple[float, float]:
+    """Plan a negative-direction stop without crossing the configured target."""
+    stop_limit = float(spec["brake_stop_angle_rad"])
+    minimum_speed = float(spec["brake_minimum_abs_velocity_rad_s"])
+    if start_dq >= -minimum_speed or start_q <= stop_limit:
+        return 0.0, max(stop_limit, start_q)
+    available = start_q - stop_limit
+    duration = min(float(spec["brake_maximum_duration_sec"]),
+                   2.0 * available / abs(start_dq))
+    stop_goal = start_q + 0.5 * start_dq * duration
+    return duration, max(stop_limit, stop_goal)
+
+
+def _brake_to_rest(bus: Mode3Bus, cfg: Campaign, start_q: float, start_dq: float,
+                   abort: Callable[[], bool], *, ignore_velocity: bool = False
+                   ) -> tuple[float, float, float, float]:
+    """Continue the measured velocity and reduce its command slope to zero."""
+    duration, stop_goal = _brake_plan(cfg, start_q, start_dq)
+    if duration <= 0.0:
+        return start_q, start_dq, duration, stop_goal
+
+    count = max(2, round(duration * cfg.command_rate_hz))
+    origin = time.monotonic()
+    error_period = 1.0 / float(cfg.timing["hardware_error_poll_rate_hz"])
+    next_error_check = origin
+    final_q, final_dq = start_q, start_dq
+    deceleration = start_dq / duration
+    for index in range(count):
+        if abort():
+            raise InterruptedError("operator abort")
+        elapsed = duration * index / (count - 1)
+        goal = start_q + start_dq * elapsed - 0.5 * deceleration * elapsed * elapsed
+        bus.write_goal_rad_no_response(goal)
+        state = bus.read_state()
+        values = _values(cfg, state)
+        final_q = float(values["present_position_rad"])
+        final_dq = float(values["present_velocity_rad_s"])
+        _check_safety(cfg, state, goal, True, ignore_velocity=ignore_velocity)
+        now = time.monotonic()
+        if now >= next_error_check:
+            _check_hardware_error(bus)
+            next_error_check = now + error_period
+        time.sleep(max(0.0, origin + (index + 1) / cfg.command_rate_hz - time.monotonic()))
+    return final_q, final_dq, duration, stop_goal
+
+
 def _plot(path: Path) -> None:
     import matplotlib
     matplotlib.use("Agg")
@@ -161,6 +247,7 @@ def collect(cfg: Campaign, condition_id: str, trajectory: str, repeat: int,
     metadata = {
         "schema_version": 1, "campaign_id": cfg.campaign_id, "condition": condition_id,
         "trajectory": trajectory, "repeat": repeat,
+        "trajectory_profile_version": int(cfg.trajectories[trajectory].get("profile_version", 1)),
         "role": role_override or ("fit" if repeat in cfg.fit_repetitions else "validation"),
         "run_group": run_group,
         "load_disk_count": condition.disk_count,
@@ -185,6 +272,12 @@ def collect(cfg: Campaign, condition_id: str, trajectory: str, repeat: int,
             cfg.bench["loaded_mounting_hardware"]["treatment"]
             if condition.loaded else "no_load_probe_horn_only"
         ),
+        "signal_directions": {
+            "position": int(cfg.hardware["direction"]),
+            "velocity": int(cfg.hardware["direction"]),
+            "pwm": int(cfg.hardware["pwm_direction"]),
+            "current": int(cfg.hardware["current_direction"]),
+        },
         "position_p_gain": 850, "position_i_gain": cfg.registers["position_i_gain"],
         "position_d_gain": cfg.registers["position_d_gain"],
         "started_at": datetime.now().astimezone().isoformat(), "valid": False,
@@ -216,31 +309,55 @@ def collect(cfg: Campaign, condition_id: str, trajectory: str, repeat: int,
                     drop_caught = False
                     drop_release_start: float | None = None
                     drop_catch_goal: float | None = None
+                    drop_brake_start: float | None = None
+                    drop_brake_start_q: float | None = None
+                    drop_brake_start_dq: float | None = None
+                    drop_brake_duration: float | None = None
                     recovery_start: float | None = None
                     recovery_origin: float | None = None
                     last_q = start_q
+                    last_dq = 0.0
+                    skipped_release_sec = 0.0
+                    drop_release_failed = False
                     for sample in samples:
                         if abort(): raise InterruptedError("operator abort")
+                        if drop_spec is not None and drop_caught and sample.phase == "released":
+                            skipped_release_sec += 1.0 / cfg.command_rate_hz
+                            continue
+                        scheduled_time = sample.time_sec - skipped_release_sec
                         phase = sample.phase
                         requested_torque = sample.torque_enable
                         runtime_goal = sample.goal_rad
                         if drop_spec is not None and phase == "released":
                             if drop_release_start is None:
                                 drop_release_start = sample.time_sec
-                            if drop_caught:
+                            if drop_brake_start is not None:
                                 requested_torque = True
-                                runtime_goal = float(drop_catch_goal)
-                                phase = "release_catch_hold"
+                                elapsed = sample.time_sec - drop_brake_start
+                                duration = float(drop_brake_duration)
+                                if duration <= 0.0 or elapsed >= duration:
+                                    runtime_goal = float(drop_catch_goal)
+                                    phase = "release_brake_stop"
+                                    drop_caught = True
+                                else:
+                                    start_q_brake = float(drop_brake_start_q)
+                                    start_dq_brake = float(drop_brake_start_dq)
+                                    deceleration = start_dq_brake / duration
+                                    runtime_goal = (start_q_brake + start_dq_brake * elapsed
+                                                    - 0.5 * deceleration * elapsed * elapsed)
+                                    runtime_goal = max(float(drop_catch_goal), runtime_goal)
+                                    phase = "release_brake"
                         elif drop_spec is not None and phase in ("recovery", "recovery_hold"):
                             if recovery_start is None:
                                 recovery_start = sample.time_sec
                                 recovery_origin = last_q
                                 if not drop_caught:
                                     metadata["drop_catch"] = {
-                                        "reason": "maximum_release_duration",
-                                        "elapsed_sec": float(drop_spec["release_duration_sec"]),
+                                        "reason": "release_timeout_failure",
+                                        "elapsed_sec": float(drop_spec["release_failure_timeout_sec"]),
                                         "position_rad": last_q,
                                     }
+                                    drop_release_failed = True
                             requested_torque = True
                             if phase == "recovery":
                                 elapsed = sample.time_sec - recovery_start
@@ -262,7 +379,7 @@ def collect(cfg: Campaign, condition_id: str, trajectory: str, repeat: int,
                         else:
                             goal_raw = cfg.rad_to_raw(runtime_goal)
                         event_writer.writerow({
-                            "sample_index": sample.index, "scheduled_time_sec": sample.time_sec,
+                            "sample_index": sample.index, "scheduled_time_sec": scheduled_time,
                             "host_time_sec": time.monotonic() - origin, "phase": phase,
                             "event": "goal_write" if torque_enabled else "torque_off_sample",
                             "torque_enable": int(torque_enabled), "goal_position_raw": goal_raw,
@@ -274,34 +391,48 @@ def collect(cfg: Campaign, condition_id: str, trajectory: str, repeat: int,
                         values = _values(cfg, timed.state)
                         q = float(values["present_position_rad"])
                         dq = float(values["present_velocity_rad_s"])
-                        _check_safety(cfg, timed.state, runtime_goal, torque_enabled)
+                        # lift_and_drop intentionally identifies free motion. Its
+                        # termination is angle-based, so the generic velocity
+                        # abort must not disable torque before/while braking.
+                        _check_safety(cfg, timed.state, runtime_goal, torque_enabled,
+                                      ignore_velocity=drop_spec is not None)
                         if (drop_spec is not None and sample.phase == "released" and
-                                not drop_caught):
+                                drop_brake_start is None):
                             trigger = None
                             if q <= float(drop_spec["catch_angle_rad"]):
                                 trigger = "angle"
-                            elif abs(dq) >= float(drop_spec["catch_abs_velocity_rad_s"]):
-                                trigger = "velocity"
                             if trigger is not None:
-                                # First command the measured angle, then enable torque.
-                                # Subsequent recovery samples move smoothly from here.
+                                # Enable at the measured state. Following 100 Hz goals
+                                # retain measured velocity and continuously reduce it.
+                                duration, stop_goal = _drop_brake_plan(drop_spec, q, dq)
                                 bus.write_goal_rad(q)
                                 bus.torque(True)
                                 torque_enabled = True
-                                drop_caught = True
-                                drop_catch_goal = q
+                                drop_brake_start = sample.time_sec
+                                drop_brake_start_q = q
+                                drop_brake_start_dq = dq
+                                drop_brake_duration = duration
+                                drop_catch_goal = stop_goal
                                 metadata["drop_catch"] = {
                                     "reason": trigger,
-                                    "elapsed_sec": sample.time_sec - float(drop_release_start),
+                                    "elapsed_sec": scheduled_time - float(drop_release_start),
                                     "position_rad": q,
                                     "velocity_rad_s": dq,
+                                    "brake_duration_sec": duration,
+                                    "brake_stop_goal_rad": stop_goal,
                                 }
+                        if (drop_spec is not None and torque_enabled and
+                                q <= float(drop_spec["emergency_angle_rad"])):
+                            metadata.setdefault("drop_emergency", {
+                                "position_rad": q, "velocity_rad_s": dq,
+                                "action": "continue maximum available position-loop braking",
+                            })
                         now = time.monotonic()
                         if now >= next_error_check:
                             _check_hardware_error(bus)
                             next_error_check = now + error_period
                         row: dict[str, object] = {
-                            "sample_index": sample.index, "scheduled_time_sec": sample.time_sec,
+                            "sample_index": sample.index, "scheduled_time_sec": scheduled_time,
                             "host_time_sec": time.monotonic() - origin, "phase": phase,
                             "torque_enable": int(sampled_torque_enabled), "goal_position_raw": goal_raw,
                             "goal_position_rad": runtime_goal, "command_tx_before_ns": tx_before,
@@ -311,7 +442,36 @@ def collect(cfg: Campaign, condition_id: str, trajectory: str, repeat: int,
                         writer.writerow(row)
                         if telemetry: telemetry(row)
                         last_q = q
-                        time.sleep(max(0.0, origin + (sample.index + 1) / cfg.command_rate_hz - time.monotonic()))
+                        last_dq = dq
+                        time.sleep(max(0.0, origin + scheduled_time + 1.0 / cfg.command_rate_hz - time.monotonic()))
+                    if drop_release_failed:
+                        raise RuntimeError("Drop pilot/run failed: catch angle was not reached before failure timeout")
+                    # Every standalone acquisition closes with Torque OFF. Return
+                    # the inverted bench to q=0 first so it cannot fall during
+                    # the worker's between-run pause and block the next preflight.
+                    return_center = float(cfg.trajectories[trajectory]["center_rad"])
+                    return_start_q = last_q
+                    return_start_dq = last_dq
+                    brake_q, brake_dq, brake_duration, brake_goal = _brake_to_rest(
+                        bus, cfg, return_start_q, return_start_dq, abort,
+                        ignore_velocity=drop_spec is not None,
+                    )
+                    _transition(bus, cfg, brake_q, return_center, abort)
+                    returned_state = bus.read_state()
+                    returned_q = cfg.raw_to_rad(returned_state.present_position_raw)
+                    _check_safety(cfg, returned_state, return_center, True,
+                                  ignore_velocity=drop_spec is not None)
+                    metadata["post_run_return"] = {
+                        "goal_position_rad": return_center,
+                        "start_position_rad": return_start_q,
+                        "start_velocity_rad_s": return_start_dq,
+                        "brake_stop_goal_rad": brake_goal,
+                        "brake_final_position_rad": brake_q,
+                        "brake_final_velocity_rad_s": brake_dq,
+                        "brake_duration_sec": brake_duration,
+                        "final_position_rad": returned_q,
+                        "return_duration_sec": float(cfg.trajectories["transition_duration_sec"]),
+                    }
                     metadata["valid"] = True
             finally:
                 try:

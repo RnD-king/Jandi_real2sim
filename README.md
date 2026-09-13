@@ -70,9 +70,11 @@ uv run jandi-r2s-mode3-bam-calibrate \
 
 명령은 Torque Off에서 영점 tick을 여러 번 읽고, 현재 위치를 Goal로 설정한 다음
 Torque On하여 raw-positive 방향으로만 저진폭 이동하고 원위치로 복귀한 뒤 Torque Off한다.
-사용자가 그 움직임이 정의한 `+관절 방향`인지 `y/n`으로 답하면 `direction`,
-`current_direction`, `pwm_direction`을 계산한다. q=0을 도립 위치로 정의하므로
-`gravity_torque_sign=1`도 기록한다. 전류/PWM 신호가 너무 작으면 결과를 적용하지 않는다.
+사용자가 그 움직임이 정의한 `+관절 방향`인지 `y/n`으로 답하면 `direction`과
+`pwm_direction`을 계산한다. 이동 중 Present Current 부호는 중력과 역기전력의 영향을
+받아 토크축 판별에 쓰지 않고, `current_direction`은 PWM과 동일한 관절축 규약을 사용한다.
+q=0을 도립 위치로 정의하므로 `gravity_torque_sign=1`도 기록한다. 전류/PWM 신호가 너무
+작으면 결과를 적용하지 않는다.
 
 이 명령도 자동으로 정할 수 없는 값은 다음과 같다.
 
@@ -119,16 +121,31 @@ GUI의 한 조건 버튼은 그 조건에 필요한 궤적을 모두 순서대�
 - `No load calibration`: `delay_probe`, `backlash_probe`
 - `Mass1..3 × Distance1..2`: `sin_time_square`, `sin_sin`, `up_and_down`, `lift_and_drop`
 
+`sin_time_square`는 현재 벤치에서 PWM 포화를 줄이기 위해 진폭 0.60 rad,
+주파수 0.10→1.00 Hz로 사용한다.
+
 현재 벤치는 `q=0`에서 추가 수직 위를 보는 도립 구조다. 따라서 원본 BAM처럼 긴 자유낙하를
-사용하지 않는다. 이 프로젝트의 `lift_and_drop`은 -0.10 rad(-5.7°)에서 Torque OFF하고,
--0.45 rad(-25.8°), |dq|=3.5 rad/s, 0.30초 중 하나에 먼저 도달하면 즉시 재제동한 뒤
-0 rad로 자동 복귀한다. 나머지 명령 궤적도 모두 ±0.70 rad(±40.1°) 이내다.
+사용하지 않는다. 이 프로젝트의 `lift_and_drop` profile 2는 -50°에서 Torque OFF하고,
+-70°부터 측정된 위치·속도를 이어받아 감속하여 -88° 이내 정지를 목표로 한 뒤 0 rad로
+복귀한다. -93°는 소프트웨어 경고이며 실측한 물리 충돌 한계는 -95°다. Drop 구간은 속도 안전한계로
+중단하지 않으며, 시간은 정상
+종료 조건으로 사용하지 않는다. 단, 2초 동안 상태 조건이 한 번도 발생하지 않으면 무동작
+파일럿으로 판정해 0 rad로 복귀한 후 run을 invalid 처리한다. 소프트웨어만으로 정지를
+보장하지 않으므로 물리적 완충장치가 필수다. 일반 구동 명령의 최대는
+`up_and_down`의 +0.70 rad(+40.1°)이고, 낙하 중 실제 각도는 이보다 커질 수 있다.
 과거 Mode 5의 -90/-60/-30/0/+30/+60/+90° 정적 전류 실험은 이번 Mode 3 BAM 동적 식별과
 목적이 달라 canonical campaign에는 포함하지 않는다.
 
 따라서 조건은 무부하 1개와 `질량 3 × 거리 2`의 부하 6개, 총 7개다. 각 조건을
 3회 수행하며 repeat 1·2만 피팅하고 repeat 3은 검증 전용으로 사용한다. 같은 조건과
 repeat를 재실행하면 기존 로그를 덮어쓰지 않고 `attempt_NNN`을 새로 만든다.
+배치가 중간에 실패한 후 같은 condition/repeat 버튼을 다시 누르면, 이미 `valid: true`인
+궤적은 건너뛰고 첫 미완료 궤적부터 재개한다. 또한 각 궤적은 성공 후 Torque OFF 전에
+마지막 측정 위치·속도를 이어받는 제한된 등감속 구간을 거친 뒤 0 rad로 복귀한다. 이는
+고속 종료 순간의 급제동과 궤적 사이 도립 벤치의 낙하를 줄이기 위한 절차다.
+Drop profile이 변경되면 이전 profile의 `valid` 로그는 보존하되 진행률과 피팅에서는 제외한다.
+따라서 같은 condition/repeat 버튼을 누르면 나머지 유효 궤적은 건너뛰고 Drop만 새 attempt로
+자동 재측정한다.
 
 ## GUI 사용 순서
 
@@ -172,6 +189,76 @@ repeat를 재실행하면 기존 로그를 덮어쓰지 않고 `attempt_NNN`을 
 6. M5 — 모터 구동/외력 방향을 분리한 directional load-dependent friction
 7. M1~M5 repeat-3 검증 오차 비교 및 가장 단순하면서 충분한 모델 선택
 8. 유효 상태형 백래시 추정
+
+## MuJoCo 단일 진자 실행 및 검증
+
+식별과 MuJoCo 검증은 분리한다. 기본 실행은 실측 데이터를 읽지 않고 `trajectories.yaml`의
+네 궤적을 MuJoCo 단일 진자에서 모두 실행한다. 질량 3개와 거리 2개의 여섯 조건을
+`--condition`으로 선택할 수 있으며, M1과 M3를 각각 또는 동시에 실행한다.
+
+```bash
+cd /home/noh/Jandi_real2sim
+
+# 기본: 선택한 하중 조건에서 네 궤적 모두 실행, 실측 비교 없음
+uv run jandi-r2s-mode3-bam-mujoco \
+  --condition mass1_distance1 \
+  --model both
+
+# 특정 궤적만 실행
+uv run jandi-r2s-mode3-bam-mujoco \
+  --condition mass3_distance2 \
+  --trajectory sin_sin \
+  --model m3
+
+# 검증 전용 repeat 3 실측값과 네 궤적 모두 비교
+uv run jandi-r2s-mode3-bam-mujoco \
+  --condition mass1_distance1 \
+  --compare-repeat 3 \
+  --model both
+
+# repeat 3의 특정 궤적만 비교
+uv run jandi-r2s-mode3-bam-mujoco \
+  --condition mass3_distance2 \
+  --trajectory sin_sin \
+  --compare-repeat 3 \
+  --model m3
+```
+
+조건 선택지는 `mass1_distance1`부터 `mass3_distance2`까지 여섯 개이고,
+궤적은 `sin_time_square`, `sin_sin`, `up_and_down`, `lift_and_drop`이다.
+`--trajectory`를 생략하면 네 궤적을 모두 실행한다. `--compare-repeat`을 생략하면
+실측값을 전혀 불러오지 않는 순수 MuJoCo 실행이며, 이때 입력전압은 기본 12.0 V이고
+`--voltage`로 변경할 수 있다. 기본 MuJoCo physics timestep은 0.001초다.
+
+순수 MuJoCo 실행 결과는 다음 위치에 저장된다.
+
+```text
+results/mode3_bam/<campaign_id>/mujoco_simulation/
+  <condition>/<trajectory>/
+    summary.yaml
+    simulation.csv
+    simulation.png
+```
+
+`simulation.png`에는 명령 위치와 M1/M3의 위치, 속도, PWM, 전류 및 예측 토크만
+표시되며 실측 곡선은 포함되지 않는다. `--compare-repeat 3`을 지정한 비교 결과는
+다음 위치에 별도로 저장된다.
+
+```text
+results/mode3_bam/<campaign_id>/mujoco_validation/
+  <condition>/<trajectory>/repeat_<N>/
+    summary.yaml
+    comparison.csv
+    comparison.png
+```
+
+`comparison.png`에는 실측값과 MuJoCo의 위치, 속도, PWM, 전류 및 예측 토크가 함께 나온다.
+전류 비교는 기존 `present_current_A` 열을 그대로 신뢰하지 않고 원본
+`present_current_raw`를 현재 `current_direction`으로 다시 변환한다. 따라서 과거 CSV를
+수정하지 않고도 현재 관절축 부호 규약으로 다시 비교할 수 있다. 새로 수집하는 run은
+사용한 위치·속도·PWM·전류 방향을 `metadata.json`에도 함께 고정 기록한다.
+실측 전류는 피팅에 사용되지 않았으므로 전류 오차는 독립 검증 지표다. 현재 단계는
+백래시 없는 M1/M3 검증이며, 상태형 백래시는 이 기준 검증 이후 별도로 추가한다.
 
 M5는 BAM 논문의 directional model 식을 따른다. 일반 부하 계수를 모터 토크 측과
 외력 토크 측으로 나누고, Stribeck 부하 계수도 같은 방식으로 분리한다. M6의 이차

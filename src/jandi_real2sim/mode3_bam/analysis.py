@@ -5,16 +5,20 @@ from __future__ import annotations
 import csv
 import json
 import math
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import yaml
 from scipy.optimize import least_squares
 
-from .config import Campaign, LOADED_TRAJECTORIES
+from .config import Campaign, LOADED_TRAJECTORIES, trajectory_profile_matches
+
+
+ProgressCallback = Callable[[dict[str, Any]], None]
 
 
 @dataclass(frozen=True)
@@ -52,12 +56,15 @@ def result_root(cfg: Campaign) -> Path:
     return root
 
 
-def _selected_attempt(logical: Path) -> Path | None:
+def _selected_attempt(cfg: Campaign, logical: Path, trajectory: str) -> Path | None:
     valid = []
     for path in sorted(logical.glob("attempt_*")):
         metadata = path / "metadata.json"
-        if metadata.exists() and json.loads(metadata.read_text()).get("valid"):
-            valid.append(path)
+        if metadata.exists():
+            report = json.loads(metadata.read_text())
+            if (report.get("valid") and
+                    trajectory_profile_matches(cfg, trajectory, report)):
+                valid.append(path)
     return valid[-1] if valid else None
 
 
@@ -69,9 +76,10 @@ def load_runs(cfg: Campaign, *, condition: str | None = None,
         metadata = json.loads(metadata_path.read_text())
         repeat = int(metadata["repeat"])
         if not metadata.get("valid") or (condition and metadata["condition"] != condition): continue
+        if not trajectory_profile_matches(cfg, metadata["trajectory"], metadata): continue
         if repetitions is not None and repeat not in repetitions: continue
         logical = metadata_path.parents[1]
-        if _selected_attempt(logical) != metadata_path.parent: continue
+        if _selected_attempt(cfg, logical, metadata["trajectory"]) != metadata_path.parent: continue
         with (metadata_path.parent / "telemetry.csv").open(newline="") as stream:
             rows = list(csv.DictReader(stream))
         def array(name: str) -> np.ndarray: return np.asarray([float(row[name]) for row in rows], dtype=float)
@@ -88,7 +96,7 @@ def _zoh(source_t: np.ndarray, source_values: np.ndarray, query_t: np.ndarray) -
     return source_values[np.clip(indexes, 0, len(source_values) - 1)]
 
 
-def fit_time_controller(cfg: Campaign) -> Path:
+def fit_time_controller(cfg: Campaign, progress: ProgressCallback | None = None) -> Path:
     runs = [run for run in load_runs(cfg, condition="no_load", repetitions=cfg.fit_repetitions)
             if run.metadata["trajectory"] == "delay_probe"]
     if not runs: raise ValueError("repeat 1/2의 valid no_load/delay_probe가 없습니다.")
@@ -96,7 +104,8 @@ def fit_time_controller(cfg: Campaign) -> Path:
     delays = np.linspace(lo, hi, 101)
     best = None
     p_gain = 850.0
-    for delay in delays:
+    started = time.monotonic()
+    for index, delay in enumerate(delays, start=1):
         design, observed = [], []
         for run in runs:
             delayed = _zoh(run.t, run.goal, run.t - delay)
@@ -108,6 +117,13 @@ def fit_time_controller(cfg: Campaign) -> Path:
         residual = np.vstack(design) @ x - np.concatenate(observed)
         score = float(np.mean(residual ** 2))
         if best is None or score < best[0]: best = (score, delay, x)
+        if progress is not None and (index == 1 or index % 5 == 0 or index == len(delays)):
+            progress({
+                "stage": "fit_time", "evaluation": index, "total": len(delays),
+                "elapsed_sec": time.monotonic() - started,
+                "current_rmse": math.sqrt(score), "best_rmse": math.sqrt(best[0]),
+                "command_delay_sec": float(delay),
+            })
     assert best is not None
     payload = {
         "stage": "time_controller", "created_at": datetime.now().astimezone().isoformat(),
@@ -211,7 +227,8 @@ def _metrics(cfg: Campaign, runs: list[Run], model: str, p: dict[str, float], co
     return {"position_mae_rad": float(np.mean(np.abs(values))), "position_rmse_rad": float(np.sqrt(np.mean(values ** 2))), "run_count": len(runs)}
 
 
-def fit_model(cfg: Campaign, model: str) -> Path:
+def fit_model(cfg: Campaign, model: str,
+              progress: ProgressCallback | None = None) -> Path:
     if model not in MODEL_PARAMETERS: raise KeyError(model)
     controller = _controller(cfg); initial = _initial(cfg, model); names = MODEL_PARAMETERS[model]
     runs = [run for run in load_runs(cfg, repetitions=cfg.fit_repetitions)
@@ -222,11 +239,38 @@ def fit_model(cfg: Campaign, model: str) -> Path:
     bounds = cfg.fit["bounds"]; lower = np.asarray([bounds[name][0] for name in names], float)
     upper = np.asarray([bounds[name][1] for name in names], float); x0 = np.asarray([initial[name] for name in names], float)
     stride = int(cfg.fit["evaluation_stride"])
+    evaluations = 0
+    started = time.monotonic()
+    best_rmse = math.inf
+    maximum = int(cfg.fit["maximum_function_evaluations"])
+    maximum_residual_calls = maximum * (len(names) + 1)
     def residual(x: np.ndarray) -> np.ndarray:
+        nonlocal evaluations, best_rmse
         p = dict(initial); p.update(dict(zip(names, map(float, x))))
-        return np.concatenate([(simulate(cfg, run, model, p, controller) - run.q)[::stride] for run in runs])
+        values = np.concatenate([(simulate(cfg, run, model, p, controller) - run.q)[::stride] for run in runs])
+        evaluations += 1
+        current_rmse = float(np.sqrt(np.mean(values ** 2)))
+        best_rmse = min(best_rmse, current_rmse)
+        if progress is not None and (evaluations == 1 or evaluations % 5 == 0):
+            progress({
+                "stage": f"fit_{model}", "model": model,
+                "evaluation": evaluations, "total": maximum_residual_calls,
+                "elapsed_sec": time.monotonic() - started,
+                "current_rmse": current_rmse, "best_rmse": best_rmse,
+                "parameters": dict(zip(names, map(float, x))),
+            })
+        return values
     fit = least_squares(residual, np.clip(x0, lower, upper), bounds=(lower, upper),
-                        max_nfev=int(cfg.fit["maximum_function_evaluations"]), verbose=0)
+                        max_nfev=maximum, verbose=0)
+    if progress is not None:
+        progress({
+            "stage": f"fit_{model}", "model": model,
+            "evaluation": evaluations, "total": maximum_residual_calls,
+            "elapsed_sec": time.monotonic() - started,
+            "current_rmse": float(np.sqrt(np.mean(fit.fun ** 2))),
+            "best_rmse": best_rmse, "parameters": dict(zip(names, map(float, fit.x))),
+            "finished": True,
+        })
     parameters = dict(initial); parameters.update(dict(zip(names, map(float, fit.x))))
     payload = {
         "stage": model, "created_at": datetime.now().astimezone().isoformat(), "model": model,

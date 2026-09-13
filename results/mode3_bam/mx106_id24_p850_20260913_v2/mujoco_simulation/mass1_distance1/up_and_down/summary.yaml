@@ -1,0 +1,23 @@
+campaign_id: mx106_id24_p850_20260913_v2
+source: generated_from_trajectory_yaml
+condition: mass1_distance1
+trajectory: up_and_down
+comparison_repeat: null
+supply_voltage_V: 12.0
+physics_timestep_sec: 0.001
+bench:
+  physical_mass_kg: 0.3614
+  center_of_mass_m: 0.09608729109020478
+  physical_inertia_about_pivot_kg_m2: 0.0036447167500000006
+  physical_inertia_about_com_kg_m2: 0.0003079945722279766
+models:
+  m3:
+    parameters:
+      kt_nm_per_a: 2.2161716898261687
+      resistance_ohm: 2.3243950944304173
+      armature_kg_m2: 0.025799168257662458
+      coulomb_friction_nm: 0.1717060794144954
+      viscous_friction_nm_s_per_rad: 9.474226883210329e-20
+      load_friction: 0.1573951561611039
+    maximum_abs_simulated_pwm_fraction: 0.1189939976081418
+    maximum_abs_simulated_current_A: 0.240732279792844
