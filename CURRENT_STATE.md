@@ -79,7 +79,7 @@ Backlash sensitivity tests may use a smaller timestep to avoid mixing timestep e
 
 Do not silently mix repeat 3 into fitting.
 
-## Latest tracked follow-up validation
+## Latest local follow-up validation
 
 Tracked follow-up result:
 
@@ -131,23 +131,29 @@ Backlash variants are comparison models unless explicitly promoted after validat
 - Effective backlash can absorb several low-speed/unmodeled effects.
 - Validation is actuator/bench level and does not by itself prove full-robot sim-to-real success.
 
-## Current repository intent
+## Storage policy
 
-Preserve:
+Track in Git:
 
 - source code
 - tests
-- config
+- configs
+- scripts
+- documentation
+- this current-state summary
+
+Keep locally under `results/`:
+
 - fitted parameter YAML
-- selected model
-- compact validation summaries
+- selected model YAML
+- validation summaries
+- simulation time series
+- comparison time series
+- plots
+- detailed follow-up outputs
 
-Keep locally rather than in Git when reproducible:
-
-- detailed simulation time series
-- detailed validation comparison time series
-- bulk PNG plots
-- large per-run follow-up tables
+When important experimental conclusions change, reflect the adopted values
+and conclusions in this file.
 
 ## Next-state update checklist
 

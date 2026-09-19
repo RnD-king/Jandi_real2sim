@@ -110,17 +110,24 @@ Do not “fix” a sign convention solely because another robotics package uses 
 
 ## Results policy
 
-Canonical information worth preserving in Git includes:
+`results/` is intentionally local-only and is not tracked by Git.
+
+Canonical experiment outputs may include:
 
 - fitted parameter YAML files
 - selected model YAML
 - compact validation summaries
 - human-readable reports
-- small aggregate metrics
+- aggregate metrics
 
-Large plots and per-sample simulation/validation traces are reproducible outputs and should normally remain local.
+These files remain under the local `results/` directory.
 
-Do not use generated artifacts as the sole source of an algorithmic truth when the corresponding config or fitted parameter file exists.
+For persistent project context, summarize the currently adopted model,
+parameters, validation conclusions, and important result paths in
+`CURRENT_STATE.md`.
+
+Do not copy large generated plots or per-sample traces into the repository
+solely to provide context to an agent.
 
 ## Verification
 
