@@ -81,7 +81,7 @@ Do not silently mix repeat 3 into fitting.
 
 ## Latest local follow-up validation
 
-Tracked follow-up result:
+Local follow-up result:
 
 `results/mode3_bam/mx106_id24_p850_20260913_v2/followup_validation/20260914_061601/`
 
