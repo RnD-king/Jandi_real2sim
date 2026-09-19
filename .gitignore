@@ -1,8 +1,39 @@
+# Python environment / cache
 .venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Raw experiment data
 data/raw/*
 data/plans/*
 !data/raw/.gitkeep
 !data/plans/.gitkeep
 
+# Re-generatable MuJoCo simulation traces
+results/**/mujoco_simulation/**/simulation.csv
+results/**/mujoco_simulation/**/simulation.png
+
+# Re-generatable validation traces
+results/**/mujoco_validation/**/comparison.csv
+results/**/mujoco_validation/**/comparison.png
+
+# Detailed follow-up validation outputs
+results/**/followup_validation/*/plots/
+results/**/followup_validation/*/all_run_metrics.csv
+results/**/followup_validation/*/reversal_metrics.csv
+
+# Editor / OS / temporary files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.tmp
+*.log
