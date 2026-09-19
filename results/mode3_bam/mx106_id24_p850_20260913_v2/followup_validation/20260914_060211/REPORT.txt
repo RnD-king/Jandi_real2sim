@@ -1,0 +1,17 @@
+Mode-3 M3 follow-up validation
+campaign: mx106_id24_p850_20260913_v2
+held-out runs: 24 (repeat 3)
+parameters refit: no
+
+Controller cadence (macro mean across 24 runs):
+  dt=0.001s | position RMSE=0.0048399 rad | derived velocity RMSE=0.07055 rad/s | PWM RMSE=0.02531 | current RMSE=0.19112 A
+  dt=0.010s | position RMSE=0.0054479 rad | derived velocity RMSE=0.08346 rad/s | PWM RMSE=0.03039 | current RMSE=0.16813 A
+
+Backlash A/B (canonical cadence, W=7):
+  m3 | position RMSE=0.0054479 rad | derived velocity RMSE=0.08346 rad/s | PWM RMSE=0.03039 | current RMSE=0.16813 A
+  m3_backlash_actuator_side | position RMSE=0.0055146 rad | derived velocity RMSE=0.08357 rad/s | PWM RMSE=0.03062 | current RMSE=0.16851 A
+  m3_backlash_output_side | position RMSE=0.0054073 rad | derived velocity RMSE=0.08597 rad/s | PWM RMSE=0.03070 | current RMSE=0.16833 A
+
+Predeclared backlash screen: do_not_adopt
+This screen is an A/B validation aid, not parameter fitting or proof of physical backlash.
+Give codex_summary.yaml to Codex first; inspect full CSV/plots only when needed.

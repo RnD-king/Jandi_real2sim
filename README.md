@@ -260,6 +260,25 @@ results/mode3_bam/<campaign_id>/mujoco_validation/
 실측 전류는 피팅에 사용되지 않았으므로 전류 오차는 독립 검증 지표다. 현재 단계는
 백래시 없는 M1/M3 검증이며, 상태형 백래시는 이 기준 검증 이후 별도로 추가한다.
 
+## M3 후속 검증 일괄 실행
+
+기존 repeat-3 데이터만 사용해 제어기 갱신 주기 sensitivity, position-derived velocity,
+1 ms canonical M3 baseline, 상태형 passive-joint backlash 폭 0/0.5/1.0/1.5배와 두
+encoder feedback 가설, 방향 반전 주변 오차까지 한 번에 검증한다. 백래시 후보는
+동일한 0.1 ms physics timestep에서 비교하며 passive limit 침범률도 검사한다.
+M3/controller 파라미터는 고정하며 재피팅하지 않는다.
+
+```bash
+cd /home/noh/Jandi_real2sim
+bash scripts/mode3_bam_followup/run_all.sh
+```
+
+실행할 때마다 `results/mode3_bam/<campaign_id>/followup_validation/<timestamp>/`에
+새 결과를 만든다. `codex_summary.yaml`은 전체 결과를 짧게 압축한 검토용 파일이고,
+상세 수치와 그래프는 같은 폴더의 CSV 및 `plots/`에 저장된다. 원본 raw data와 기존
+M3 fitting 결과는 수정하지 않는다. 세부 옵션과 출력 구조는
+`scripts/mode3_bam_followup/README.md`를 참고한다.
+
 M5는 BAM 논문의 directional model 식을 따른다. 일반 부하 계수를 모터 토크 측과
 외력 토크 측으로 나누고, Stribeck 부하 계수도 같은 방식으로 분리한다. M6의 이차
 부하 항은 현재 실험 범위와 파라미터 수를 고려해 포함하지 않는다.

@@ -1,0 +1,21 @@
+Mode-3 M3 follow-up validation
+campaign: mx106_id24_p850_20260913_v2
+held-out runs: 24 (repeat 3)
+parameters refit: no
+
+Controller cadence (macro mean across 24 runs):
+  dt=0.001s | position RMSE=0.0048399 rad | derived velocity RMSE=0.07055 rad/s | PWM RMSE=0.02531 | current RMSE=0.19112 A
+  dt=0.010s | position RMSE=0.0054479 rad | derived velocity RMSE=0.08346 rad/s | PWM RMSE=0.03039 | current RMSE=0.16813 A
+
+Backlash width sensitivity (canonical cadence, W=7):
+  m3 width=0x | position RMSE=0.0048527 rad | derived velocity RMSE=0.07113 rad/s | PWM RMSE=0.02888 | current RMSE=0.13318 A | max limit violation=0.00% half-width
+  m3_backlash_actuator_side_w0p500 width=0.5x | position RMSE=0.0049116 rad | derived velocity RMSE=0.07115 rad/s | PWM RMSE=0.02913 | current RMSE=0.13346 A | max limit violation=1.45% half-width
+  m3_backlash_actuator_side_w1p000 width=1x | position RMSE=0.0049249 rad | derived velocity RMSE=0.07143 rad/s | PWM RMSE=0.02912 | current RMSE=0.13362 A | max limit violation=1.36% half-width
+  m3_backlash_actuator_side_w1p500 width=1.5x | position RMSE=0.0049393 rad | derived velocity RMSE=0.07188 rad/s | PWM RMSE=0.02912 | current RMSE=0.13370 A | max limit violation=1.00% half-width
+  m3_backlash_output_side_w0p500 width=0.5x | position RMSE=0.0048044 rad | derived velocity RMSE=0.07063 rad/s | PWM RMSE=0.02915 | current RMSE=0.13343 A | max limit violation=1.77% half-width
+  m3_backlash_output_side_w1p000 width=1x | position RMSE=0.0047622 rad | derived velocity RMSE=0.07190 rad/s | PWM RMSE=0.02934 | current RMSE=0.13358 A | max limit violation=1.50% half-width
+  m3_backlash_output_side_w1p500 width=1.5x | position RMSE=0.0047900 rad | derived velocity RMSE=0.07479 rad/s | PWM RMSE=0.02976 | current RMSE=0.13423 A | max limit violation=1.06% half-width
+
+Predeclared backlash screen: do_not_adopt
+This screen is an A/B validation aid, not parameter fitting or proof of physical backlash.
+Give codex_summary.yaml to Codex first; inspect full CSV/plots only when needed.
