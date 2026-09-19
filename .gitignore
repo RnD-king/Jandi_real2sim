@@ -17,18 +17,8 @@ data/plans/*
 !data/raw/.gitkeep
 !data/plans/.gitkeep
 
-# Re-generatable MuJoCo simulation traces
-results/**/mujoco_simulation/**/simulation.csv
-results/**/mujoco_simulation/**/simulation.png
-
-# Re-generatable validation traces
-results/**/mujoco_validation/**/comparison.csv
-results/**/mujoco_validation/**/comparison.png
-
-# Detailed follow-up validation outputs
-results/**/followup_validation/*/plots/
-results/**/followup_validation/*/all_run_metrics.csv
-results/**/followup_validation/*/reversal_metrics.csv
+# Generated experiment / simulation results
+results/
 
 # Editor / OS / temporary files
 .vscode/
